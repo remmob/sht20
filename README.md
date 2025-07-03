@@ -70,27 +70,21 @@ That’s it! 🎉 The UI will guide you through connecting and configuring your 
 --- 
 ## 🛠️ The Setup
 
-<p float="right">
-  <img src="./images/flowstart.png" width="200"/>
-</p>
+![flow](./images/flowstart.png)
 
 - Give the sensor a name  
 - Assign a device ID (Modbus address, default = 1)  
 - Choose either **TCP** (through a Modbus gateway) or **RTU** (serial)  
 - Click **Submit**
 
-<p float="right">
-  <img src="./images/flowtcp.png" width="100"/>
-</p>
+![tcp](./images/flowtcp.png)
 
 - In the **TCP setup**, enter a valid IP address  
 - Set the TCP port (default = 502)  
 - Define the scan interval (default = 10 seconds)  
 - Click **Submit**
 
-<p float="right">
-  <img src="./images/flowrtu.png" width="100"/>
-</p>
+![rtu](./images/flowrtu.png)
 
 - In the **RTU setup**, select the serial port used by the device  
 - All available ports are automatically listed  
@@ -106,11 +100,10 @@ You can then edit these by clicking the ⚙️ gear icon in the integration over
 
 ## ⚙️ Options
 
-<p float="right">
-  <img src="./images/options.png" width="100"/>
-</p>
-
+![options](./images/optionstart.png)<br>
 Click the gear icon in the SHT20 integration overview to edit the options.
+
+![options](./images/options.png)<br>
 
 **Available options:**
 - Device ID  
@@ -122,5 +115,5 @@ These values are written directly to the device's Modbus registers
 and synchronized with Home Assistant.
 
 💡 *Note:* Some sensors (e.g. PCB-only versions) return raw values  
-using a different multiplier. By default, a multiplier of **0.1** (÷10) is applied.  
-If no scaling is required, change the multiplier to **1**.
+    using a different multiplier. By default, a multiplier of **0.1** (÷10) is applied.  
+    If no scaling is required, change the multiplier to **1**.
