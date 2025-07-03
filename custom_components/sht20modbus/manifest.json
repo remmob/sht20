@@ -1,0 +1,9 @@
+{
+    "domain": "sht20",
+    "name": "SHT20",
+    "codeowners": ["@remmob"],
+    "config_flow": true,
+    "iot_class": "local_polling",
+    "requirements": ["pymodbus>=3.8.6"],
+    "version": "1.0.0"
+}
