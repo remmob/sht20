@@ -1,0 +1,6 @@
+{
+  "name": "sht20modbus",
+  "content_in_root": false,
+  "homeassistant": "2025.7.0",
+  "render_readme": true
+} 
