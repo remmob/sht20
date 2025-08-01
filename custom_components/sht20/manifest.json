@@ -3,6 +3,8 @@
     "name": "SHT20",
     "codeowners": ["@remmob"],
     "config_flow": true,
+    "documentation": "https://github.com/remmob/sht20",
     "iot_class": "local_polling",
+    "issue_tracker": "https://github.com/remmob/sht20/issues",
     "version": "1.0.0"
 }
