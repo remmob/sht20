@@ -1,5 +1,5 @@
 ![Version](https://img.shields.io/github/v/release/remmob/sht20modbus 'Release')
-![Latest Release Downloads](https://img.shields.io/github/downloads/remmob/sht20modbus/latest/total 'Downloads for the latest release')
+![GitHub release (latest by date)](https://img.shields.io/github/downloads/remmob/sht20modbus/latest/total 'Downloads for the latest release')
 ![Total Downloads](https://img.shields.io/github/downloads/remmob/sht20modbus/total 'Total downloads across all releases')
 [![total issues](https://img.shields.io/github/issues/remmob/sht20modbus 'Total issues')](https://github.com/remmob/sht20modbus/issues)
 ![Stars](https://img.shields.io/github/stars/remmob/sht20modbus)
