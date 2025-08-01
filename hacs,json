@@ -2,5 +2,5 @@
   "name": "sht20",
   "content_in_root": false,
   "homeassistant": "2025.7.0",
-  "render_readme": true
+  "render_readme": false
 } 
