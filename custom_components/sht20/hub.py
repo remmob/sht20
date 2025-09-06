@@ -1,19 +1,16 @@
 from pymodbus.client import AsyncModbusSerialClient
-from pymodbus.client.tcp    import AsyncModbusTcpClient
+from pymodbus.client.tcp import AsyncModbusTcpClient
 from pymodbus.client import ModbusTcpClient
-from pymodbus.constants import Endian
-
-
 import asyncio, logging
 
 _LOGGER = logging.getLogger(__name__)
 
 class ShtModbusHub:
-    def __init__(self, hass, name, mode, unit_id, host=None, port=None, device=None, baudrate=None, multiplier=0.1):
+    def __init__(self, hass, name, mode, device_id, host=None, port=None, device=None, baudrate=None, multiplier=0.1):
         self.hass     = hass
         self.name     = name
         self.mode     = mode
-        self.unit     = unit_id
+        self.unit     = device_id
         self.host     = host
         self.port     = port
         self.device   = device
@@ -46,8 +43,12 @@ class ShtModbusHub:
         
     async def read_realtime_data(self):
         await self.connect()
-        result = await self._client.read_input_registers(
-            1, count=2, slave=self.unit
+        client = self._client
+
+        result = await client.read_input_registers(
+            address=1,
+            count=2,
+            device_id=self.unit
         )
         if result.isError():
             raise Exception(f"Modbus read error (realtime): {result}")
@@ -64,8 +65,12 @@ class ShtModbusHub:
 
     async def read_settings(self):
         await self.connect()
-        result = await self._client.read_holding_registers(
-            257, count=4, slave=self.unit
+        client = self._client
+
+        result = await client.read_holding_registers(
+            address=257,
+            count=4,
+            device_id=self.unit
         )
         if result.isError():
             raise Exception(f"Modbus read error (settings): {result}")
@@ -81,25 +86,43 @@ class ShtModbusHub:
 
     async def write_device_settings(self, device_id: int, baudrate: int):
         await self.connect()
-        for addr, val in ((257, device_id), (258, baudrate)):  # Let op: correcte adressen!
+        client = self._client
+
+        for addr, val in ((257, device_id), (258, baudrate)):
             val_unsigned = val & 0xFFFF
-            res = await self._client.write_register(addr, val_unsigned, slave=self.unit)
+            res = await client.write_register(
+                address=addr,
+                value=val_unsigned,
+                device_id=self.unit
+            )
             if res.isError():
                 raise Exception(f"Failed to write register {addr}: {res}")
         
 
     async def write_correction_settings(self, temp_offset: int, hum_offset: int):
         await self.connect()
+        client = self._client
 
         try:
-            payload = ModbusTcpClient.convert_to_registers(
-                [int(temp_offset * 10), int(hum_offset * 10)],
+            temp_payload = ModbusTcpClient.convert_to_registers(
+                [int(temp_offset * 10)],
                 data_type=ModbusTcpClient.DATATYPE.INT16,
-                word_order=Endian.BIG,
+                word_order='big',
             )
 
-            
-            res = await self._client.write_registers(259, payload, slave=self.unit)
+            hum_payload = ModbusTcpClient.convert_to_registers(
+                [int(hum_offset * 10)],
+                data_type=ModbusTcpClient.DATATYPE.INT16,
+                word_order='big',
+            )
+
+            payload = temp_payload + hum_payload
+
+            res = await client.write_registers(
+                address=259,
+                values=payload,
+                device_id=self.unit
+            )
             if res.isError():
                 raise Exception(f"Modbus write error: {res}")
 
