@@ -14,7 +14,7 @@ These sensors can be purchased via **AliExpress** and, in the Netherlands, via t
 [https://domoticx.net/webshop/modbus-rs485-rtu-temphum-sensor-9-36vdc-xy-md01-sht20/](https://domoticx.net/webshop/modbus-rs485-rtu-temphum-sensor-9-36vdc-xy-md01-sht20/)<br>
 (*If you know any other shops? drop a line in the discussions*)
 
-The setup is fully UI-driven via Home Assistant's `config_flow`, requiring no YAML editing. Users can fine-tune sensor calibration and scaling — all within the frontend.
+The setup is fully UI-driven via Home Assistant's `config_flow`, requiring no YAML editing. Users can fine-tune sensor calibration and scaling — all within the frontend. 
 
 
 ---
