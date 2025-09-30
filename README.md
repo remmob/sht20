@@ -1,6 +1,6 @@
 ![Version](https://img.shields.io/github/v/release/remmob/sht20modbus 'Release')
 
-![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home) 
+![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home') 
 
 [![total issues](https://img.shields.io/github/issues/remmob/sht20modbus 'Total issues')](https://github.com/remmob/sht20modbus/issues)
 
