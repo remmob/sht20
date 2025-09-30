@@ -1,4 +1,4 @@
-![Version](https://img.shields.io/github/v/release/remmob/sht20modbus 'Release')![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home')[![total issues](https://img.shields.io/github/issues/remmob/sht20modbus 'Total issues')](https://github.com/remmob/sht20modbus/issues)![Stars](https://img.shields.io/github/stars/remmob/sht20modbus)
+![Version](https://img.shields.io/github/v/release/remmob/sht20modbus 'Release') ![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home') [![total issues](https://img.shields.io/github/issues/remmob/sht20modbus 'Total issues')](https://github.com/remmob/sht20modbus/issues) ![Stars](https://img.shields.io/github/stars/remmob/sht20modbus)
 # 🧩 SHT20 Modbus Sensor Integration for Home Assistant
 
 This custom Home Assistant integration enables you to easily connect and configure **SHT20 Modbus RS485 sensors** (models **XY-MD01** / **XY-MD02**) using either:
