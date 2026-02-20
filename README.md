@@ -113,3 +113,5 @@ and synchronized with Home Assistant.
 💡 *Note:* Some sensors (e.g. PCB-only versions) return raw values  
     using a different multiplier. By default, a multiplier of **0.1** (÷10) is applied.  
     If no scaling is required, change the multiplier to **1**.
+---
+©2026 Bommer Software | Author: Mischa Bommer
