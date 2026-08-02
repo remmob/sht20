@@ -1,0 +1,103 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "SHT20 sensor",
+        "description": "Choose a name and the way the sensor is connected.",
+        "data": {
+          "name": "Name",
+          "device_id": "Modbus device ID",
+          "mode": "Connection type"
+        },
+        "data_description": {
+          "device_id": "Modbus address of the sensor (1-247).",
+          "mode": "tcp or udp for a Modbus gateway, rtu for a direct serial connection. Use udp when the gateway runs out of TCP connections."
+        }
+      },
+      "tcp": {
+        "title": "Modbus TCP",
+        "data": {
+          "host": "IP address",
+          "port": "Port",
+          "scan_interval": "Scan interval (seconds)"
+        },
+        "data_description": {
+          "host": "IP address of the Modbus TCP gateway.",
+          "port": "TCP port of the gateway. The default is 502.",
+          "scan_interval": "How often the sensor is read."
+        }
+      },
+      "rtu": {
+        "title": "Modbus RTU",
+        "data": {
+          "device": "Serial port",
+          "baudrate": "Baud rate",
+          "scan_interval": "Scan interval (seconds)"
+        },
+        "data_description": {
+          "scan_interval": "How often the sensor is read."
+        }
+      },
+      "udp": {
+        "title": "Modbus UDP",
+        "data": {
+          "host": "IP address",
+          "port": "Port",
+          "scan_interval": "Scan interval (seconds)"
+        },
+        "data_description": {
+          "host": "IP address of the Modbus TCP gateway.",
+          "port": "TCP port of the gateway. The default is 502.",
+          "scan_interval": "How often the sensor is read."
+        },
+        "description": "UDP is connectionless, so the gateway does not limit the number of clients. There is no delivery guarantee; failed reads are retried."
+      }
+    },
+    "error": {
+      "invalid_ip": "Invalid IP address.",
+      "invalid_baudrate": "Invalid baud rate."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SHT20 settings",
+        "description": "Device settings and corrections. The offsets are written to the sensor itself.",
+        "data": {
+          "device_id": "Modbus device ID",
+          "baudrate": "Baud rate",
+          "temp_offset": "Temperature correction (°C)",
+          "hum_offset": "Humidity correction (%)",
+          "multiplier": "Multiplier",
+          "pressure": "Air pressure (hPa)",
+          "notify_connection_errors_persistent": "Notification in Home Assistant on connection loss",
+          "notify_connection_errors_mobile": "Push message on connection loss",
+          "notify_connection_errors_services": "Notification services",
+          "connection_error_notification_title": "Notification title",
+          "connection_error_delay": "Delay before notifying (seconds)",
+          "notify_recovery": "Also notify when the connection is restored",
+          "quiet_hours_enabled": "Use quiet hours",
+          "quiet_hours_start": "Quiet hours from",
+          "quiet_hours_end": "Quiet hours until"
+        },
+        "data_description": {
+          "device_id": "Modbus address of the sensor (1-247). Changing this writes the new address to the sensor.",
+          "baudrate": "Changing this writes the new baud rate to the sensor. Make sure the gateway or serial port uses the same speed afterwards.",
+          "temp_offset": "Correction written to the sensor and applied by the sensor itself.",
+          "hum_offset": "Correction written to the sensor and applied by the sensor itself.",
+          "multiplier": "Scaling factor for the raw register value. Use 0.1 for a sensor that reports tenths.",
+          "pressure": "Ambient air pressure used for the absolute humidity and enthalpy calculation. Standard atmosphere is 1013.25 hPa; lower this value at higher altitudes.",
+          "notify_connection_errors_services": "Comma separated notify service names, for example mobile_app_phone. Without the service domain (so not notify.mobile_app_phone).",
+          "connection_error_delay": "How long communication has to be down before a notification is sent. Prevents notifications for a short hiccup.",
+          "notify_recovery": "Sends a second message as soon as the sensor can be reached again.",
+          "quiet_hours_enabled": "Holds push messages during the configured period. They are sent as soon as the period ends. Notifications inside Home Assistant are never held.",
+          "quiet_hours_start": "Push messages are held from this time onwards.",
+          "quiet_hours_end": "Held push messages are sent at this time."
+        }
+      }
+    },
+    "error": {
+      "write_failed": "Could not write the settings to the sensor. The settings have not been saved."
+    }
+  }
+}

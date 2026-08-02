@@ -15,7 +15,6 @@ from .const import (
     CONF_DEVICE_ID,
     CONF_BAUDRATE,
     CONF_SCAN_INTERVAL,
-    CONF_MULTIPLIER,
     DEFAULT_BAUDRATE,
     DEFAULT_DEVICE_ID,
     DEFAULT_SCAN_INTERVAL,
@@ -24,8 +23,7 @@ from .const import (
 
 from .hub import ShtModbusHub
 from .coordinator import RealtimeCoordinator, SettingsCoordinator
-
-from .config_flow import Sht20OptionsFlowHandler
+from .connection_monitor import ConnectionMonitor
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,7 +42,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unit_id = entry.data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID)
     scan_interval = entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
 
-    if mode == "tcp":
+    if mode in ("tcp", "udp"):
         host = entry.data[CONF_HOST]
         port = entry.data[CONF_PORT]
         hub = ShtModbusHub(hass, name, mode, unit_id, host=host, port=port)
@@ -53,7 +51,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         baudrate = entry.data.get(CONF_BAUDRATE, DEFAULT_BAUDRATE)
         hub = ShtModbusHub(hass, name, mode, unit_id, device=device, baudrate=baudrate)
 
-    realtime_coordinator = RealtimeCoordinator(hass, name, hub, scan_interval)
+    connection_monitor = ConnectionMonitor(hass, name, dict(entry.options), scan_interval)
+    connection_monitor.start()
+
+    realtime_coordinator = RealtimeCoordinator(
+        hass, name, hub, scan_interval, connection_monitor
+    )
     settings_coordinator = SettingsCoordinator(hass, name, hub)
 
     await realtime_coordinator.async_config_entry_first_refresh()
@@ -73,21 +76,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "hub": hub,
         "realtime": realtime_coordinator,
         "settings": settings_coordinator,
+        "connection_monitor": connection_monitor,
     }
+
+    # Reload on changes so a new multiplier, pressure or device ID takes effect
+    entry.async_on_unload(entry.add_update_listener(async_update_listener))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 
 
-async def async_get_options_flow(config_entry: ConfigEntry,) -> Sht20OptionsFlowHandler:
-    """Get the options flow for this integration."""
-    return Sht20OptionsFlowHandler(config_entry)
+async def async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the config entry after the settings changed."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
+        entry_data = hass.data[DOMAIN].pop(entry.entry_id, {})
+        monitor = entry_data.get("connection_monitor")
+        if monitor is not None:
+            monitor.stop()
+        hub = entry_data.get("hub")
+        if hub is not None:
+            await hub.close()
     return unload_ok

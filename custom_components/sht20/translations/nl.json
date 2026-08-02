@@ -1,0 +1,103 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "SHT20 sensor",
+        "description": "Kies een naam en de manier waarop de sensor is aangesloten.",
+        "data": {
+          "name": "Naam",
+          "device_id": "Modbus apparaat-ID",
+          "mode": "Verbindingstype"
+        },
+        "data_description": {
+          "device_id": "Modbus-adres van de sensor (1-247).",
+          "mode": "tcp of udp voor een Modbus-gateway, rtu voor een directe seriële verbinding. Gebruik udp als de gateway te weinig TCP-verbindingen aankan."
+        }
+      },
+      "tcp": {
+        "title": "Modbus TCP",
+        "data": {
+          "host": "IP-adres",
+          "port": "Poort",
+          "scan_interval": "Uitleesinterval (seconden)"
+        },
+        "data_description": {
+          "host": "IP-adres van de Modbus TCP-gateway.",
+          "port": "TCP-poort van de gateway. Standaard is 502.",
+          "scan_interval": "Hoe vaak de sensor wordt uitgelezen."
+        }
+      },
+      "rtu": {
+        "title": "Modbus RTU",
+        "data": {
+          "device": "Seriële poort",
+          "baudrate": "Baudrate",
+          "scan_interval": "Uitleesinterval (seconden)"
+        },
+        "data_description": {
+          "scan_interval": "Hoe vaak de sensor wordt uitgelezen."
+        }
+      },
+      "udp": {
+        "title": "Modbus UDP",
+        "data": {
+          "host": "IP-adres",
+          "port": "Poort",
+          "scan_interval": "Uitleesinterval (seconden)"
+        },
+        "data_description": {
+          "host": "IP-adres van de Modbus TCP-gateway.",
+          "port": "TCP-poort van de gateway. Standaard is 502.",
+          "scan_interval": "Hoe vaak de sensor wordt uitgelezen."
+        },
+        "description": "UDP is verbindingsloos, dus de gateway beperkt het aantal clients niet. Er is geen garantie op aflevering; mislukte uitlezingen worden opnieuw geprobeerd."
+      }
+    },
+    "error": {
+      "invalid_ip": "Ongeldig IP-adres.",
+      "invalid_baudrate": "Ongeldige baudrate."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SHT20 instellingen",
+        "description": "Apparaatinstellingen en correcties. De correcties worden naar de sensor zelf geschreven.",
+        "data": {
+          "device_id": "Modbus apparaat-ID",
+          "baudrate": "Baudrate",
+          "temp_offset": "Temperatuurcorrectie (°C)",
+          "hum_offset": "Vochtigheidscorrectie (%)",
+          "multiplier": "Vermenigvuldigingsfactor",
+          "pressure": "Luchtdruk (hPa)",
+          "notify_connection_errors_persistent": "Melding in Home Assistant bij verbindingsverlies",
+          "notify_connection_errors_mobile": "Pushbericht bij verbindingsverlies",
+          "notify_connection_errors_services": "Notificatiediensten",
+          "connection_error_notification_title": "Titel van de melding",
+          "connection_error_delay": "Wachttijd voor melding (seconden)",
+          "notify_recovery": "Ook melden als de verbinding is hersteld",
+          "quiet_hours_enabled": "Stille uren gebruiken",
+          "quiet_hours_start": "Stille uren van",
+          "quiet_hours_end": "Stille uren tot"
+        },
+        "data_description": {
+          "device_id": "Modbus-adres van de sensor (1-247). Bij wijziging wordt het nieuwe adres naar de sensor geschreven.",
+          "baudrate": "Bij wijziging wordt de nieuwe snelheid naar de sensor geschreven. Stel daarna de gateway of seriële poort op dezelfde snelheid in.",
+          "temp_offset": "Correctie die naar de sensor wordt geschreven en door de sensor zelf wordt toegepast.",
+          "hum_offset": "Correctie die naar de sensor wordt geschreven en door de sensor zelf wordt toegepast.",
+          "multiplier": "Schaalfactor voor de ruwe registerwaarde. Gebruik 0,1 voor een sensor die in tienden meet.",
+          "pressure": "Omgevingsluchtdruk die wordt gebruikt voor de berekening van de absolute luchtvochtigheid en de enthalpie. De standaardatmosfeer is 1013,25 hPa; verlaag deze waarde op grotere hoogte.",
+          "notify_connection_errors_services": "Namen van notify-diensten, gescheiden door komma's, bijvoorbeeld mobile_app_telefoon. Zonder de naam van de dienst (dus niet notify.mobile_app_telefoon).",
+          "connection_error_delay": "Hoe lang de communicatie weg moet zijn voordat er een melding komt. Voorkomt meldingen bij een korte hapering.",
+          "notify_recovery": "Stuurt een tweede bericht zodra de sensor weer bereikbaar is.",
+          "quiet_hours_enabled": "Houdt pushberichten tegen binnen de ingestelde periode. Ze worden alsnog verstuurd zodra de periode voorbij is. Meldingen in Home Assistant zelf worden nooit tegengehouden.",
+          "quiet_hours_start": "Vanaf dit tijdstip worden pushberichten vastgehouden.",
+          "quiet_hours_end": "Op dit tijdstip worden vastgehouden pushberichten alsnog verstuurd."
+        }
+      }
+    },
+    "error": {
+      "write_failed": "De instellingen konden niet naar de sensor worden geschreven. De instellingen zijn niet opgeslagen."
+    }
+  }
+}
