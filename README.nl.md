@@ -140,7 +140,6 @@ Dit is allemaal optioneel en standaard uitgeschakeld; zet aan wat je nodig hebt 
 ## 💡 Opmerkingen
 
 - Sommige sensoren (bijv. kale-print-versies) rapporteren ruwe waarden met een andere multiplier. De standaard-multiplier is **0.01**; pas 'm aan als je metingen een factor tien afwijken.
-- Temperaturen onder nul worden ondersteund — het temperatuurregister wordt als signed-waarde gelezen.
 
 ---
 

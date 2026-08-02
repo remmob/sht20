@@ -140,7 +140,6 @@ All of this is optional and switched off by default; enable what you need from t
 ## 💡 Notes
 
 - Some sensors (e.g. bare-PCB versions) report raw values with a different multiplier. The default multiplier is **0.01**; change it if your readings are off by a factor of ten.
-- Sub-zero temperatures are supported — the temperature register is read as a signed value.
 
 ---
 
