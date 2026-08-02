@@ -54,21 +54,42 @@ The calculations use an ambient **pressure** value that you can set in the optio
 
 ---
 
-## 📦 Installation via HACS
+## 📦 Installation
 
 <p float="right">
   <img src="./images/pcb.png" width="200"/>
 </p>
 
-1. Open **HACS** in Home Assistant.
-2. Open the **three-dot menu (⋮)** in the top right and choose **Custom repositories**.
-3. Add the repository URL: `https://github.com/remmob/sht20modbus`
-4. Set the category to **Integration** and click **Add**.
-5. Search for **SHT20** and install it.
-6. **Restart Home Assistant**.
-7. Go to **Settings → Devices & Services → Add Integration** and search for **SHT20**.
+### HACS (default store)
 
-That's it! 🎉 The UI guides you through connecting and configuring your sensor(s).
+SHT20 Modbus is available in the [HACS](https://hacs.xyz) default store.
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=remmob&repository=sht20&category=integration)
+
+1. Open **HACS** in Home Assistant.
+2. Search for **SHT20** and open it (or use the button above).
+3. Click **Download**.
+4. **Restart Home Assistant**.
+
+### HACS (custom repository)
+
+1. Open **HACS** in Home Assistant.
+2. Click the three-dot menu (⋮) in the top right corner.
+3. Select **Custom repositories**.
+4. Add this repository URL: `https://github.com/remmob/sht20modbus`.
+5. Set the category to **Integration** and click **Add**.
+6. Search for **SHT20** and download it.
+7. **Restart Home Assistant**.
+
+See the [official HACS documentation](https://hacs.xyz/docs/faq/custom_repositories/) for more details.
+
+### Manual
+
+1. Download or copy the `sht20` folder from this repository: [`custom_components/sht20`](custom_components/sht20)
+2. Place this folder in your Home Assistant installation under: `config/custom_components/sht20`
+3. **Restart Home Assistant**.
+
+After installing, go to **Settings → Devices & Services → Add Integration** and search for **SHT20**. That's it! 🎉 The UI guides you through connecting and configuring your sensor(s).
 
 ---
 

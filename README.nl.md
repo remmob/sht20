@@ -54,21 +54,42 @@ De berekeningen gebruiken een instelbare **luchtdruk** (standaard 1013,25 hPa) v
 
 ---
 
-## 📦 Installatie via HACS
+## 📦 Installatie
 
 <p float="right">
   <img src="./images/pcb.png" width="200"/>
 </p>
 
-1. Open **HACS** in Home Assistant.
-2. Open het **drie-punten-menu (⋮)** rechtsboven en kies **Aangepaste repositories**.
-3. Voeg de repository-URL toe: `https://github.com/remmob/sht20modbus`
-4. Zet de categorie op **Integratie** en klik op **Toevoegen**.
-5. Zoek op **SHT20** en installeer de integratie.
-6. **Herstart Home Assistant**.
-7. Ga naar **Instellingen → Apparaten & diensten → Integratie toevoegen** en zoek op **SHT20**.
+### HACS (standaard store)
 
-Klaar! 🎉 De UI leidt je door het verbinden en instellen van je sensor(en).
+SHT20 Modbus is beschikbaar in de [HACS](https://hacs.xyz) standaard store.
+
+[![Open je Home Assistant en open een repository in de Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=remmob&repository=sht20&category=integration)
+
+1. Open **HACS** in Home Assistant.
+2. Zoek op **SHT20** en open het (of gebruik de knop hierboven).
+3. Klik op **Downloaden**.
+4. **Herstart Home Assistant**.
+
+### HACS (custom repository)
+
+1. Open **HACS** in Home Assistant.
+2. Klik op het menu met de drie puntjes (⋮) rechtsboven.
+3. Kies **Custom repositories**.
+4. Voeg deze repository-URL toe: `https://github.com/remmob/sht20modbus`.
+5. Zet de categorie op **Integration** en klik op **Add**.
+6. Zoek op **SHT20** en download het.
+7. **Herstart Home Assistant**.
+
+Zie de [officiële HACS documentatie](https://hacs.xyz/docs/faq/custom_repositories/) voor meer details.
+
+### Handmatig
+
+1. Download of kopieer de map `sht20` uit deze repository: [`custom_components/sht20`](custom_components/sht20)
+2. Plaats deze map in je Home Assistant installatie onder: `config/custom_components/sht20`
+3. **Herstart Home Assistant**.
+
+Na installatie ga je naar **Instellingen → Apparaten & diensten → Integratie toevoegen** en zoek je op **SHT20**. Klaar! 🎉 De UI leidt je door het verbinden en instellen van je sensor(en).
 
 ---
 
