@@ -219,22 +219,26 @@ class Sht20ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def _create_entry(self) -> FlowResult:
+        # UITLEG: Hier werd een tweede, eigen hub opgebouwd om de sensor even uit
+        # te lezen tijdens de installatie, met een `await hub.connect()` erbij.
+        # Nu vragen we een tijdelijke unit aan.
+        #
+        # Het verschil is groter dan het lijkt: op HA 2026.9+ lift die tijdelijke
+        # unit mee op een verbinding die al openstaat naar dezelfde gateway, in
+        # plaats van er een tweede socket naast te zetten. Precies het probleem
+        # dat een Elfin EW-11 niet aankan.
+        from .connection import build_params, temporary_unit
         from .hub import ShtModbusHub
+
         properties = {}
+        unit_id = self._data[CONF_DEVICE_ID]
 
         try:
-            hub = ShtModbusHub(
-                self.hass,
-                name=self._data[CONF_NAME],
-                mode=self._data[CONF_MODE],
-                device_id=self._data[CONF_DEVICE_ID],
-                host=self._data.get(CONF_HOST),
-                port=self._data.get(CONF_PORT),
-                device=self._data.get(CONF_DEVICE),
-                baudrate=self._data.get(CONF_BAUDRATE)
-            )
-            await hub.connect()
-            properties = await hub.read_settings()
+            async with temporary_unit(
+                self.hass, build_params(self._data), unit_id
+            ) as unit:
+                hub = ShtModbusHub(self._data[CONF_NAME], unit, unit_id)
+                properties = await hub.read_settings()
         except Exception as e:
             _LOGGER.warning(f"Could not retrieve settings during installation.: {e}")
 
@@ -285,6 +289,7 @@ class Sht20OptionsFlowHandler(OptionsFlow):
             current_baudrate = self.config_entry.data.get(CONF_BAUDRATE, DEFAULT_BAUDRATE)
 
         if user_input is not None:
+            from .connection import build_params, temporary_unit
             from .hub import ShtModbusHub
 
             # The selectors hand back a float and a string
@@ -309,37 +314,51 @@ class Sht20OptionsFlowHandler(OptionsFlow):
 
             # Only talk to the sensor when something it stores actually changed
             if offsets_changed or device_id_changed or baudrate_changed:
-                hub = None
+                # UITLEG: De verbindingsinstellingen zoals ze NU zijn. Bij rtu
+                # hoort de huidige baudrate daarbij, want die bepaalt hoe we de
+                # sensor op dit moment kunnen bereiken.
+                name = self.config_entry.data[CONF_NAME]
+                current_params = build_params(
+                    {**self.config_entry.data, CONF_BAUDRATE: current_baudrate}
+                )
+
                 try:
-                    hub = ShtModbusHub(
-                        self.hass,
-                        name=self.config_entry.data[CONF_NAME],
-                        mode=mode,
-                        device_id=current_device_id,
-                        host=self.config_entry.data.get(CONF_HOST),
-                        port=self.config_entry.data.get(CONF_PORT),
-                        device=self.config_entry.data.get(CONF_DEVICE),
-                        baudrate=current_baudrate,
-                    )
-                    await hub.connect()
+                    # UITLEG: Stap 1, op het HUIDIGE adres. De offsets eerst,
+                    # want die veranderen niets aan de bereikbaarheid. Daarna het
+                    # device-id, wat het adres van de sensor verzet.
+                    async with temporary_unit(
+                        self.hass, current_params, current_device_id
+                    ) as unit:
+                        hub = ShtModbusHub(name, unit, current_device_id)
 
-                    # The offsets still use the current address, so write them first
-                    if offsets_changed:
-                        await hub.write_correction_settings(temp_offset=temp_offset, hum_offset=hum_offset)
+                        if offsets_changed:
+                            await hub.write_correction_settings(
+                                temp_offset=temp_offset, hum_offset=hum_offset
+                            )
 
-                    # These change how the sensor is reached, so they go last
-                    if device_id_changed or baudrate_changed:
-                        await hub.write_device_settings(
-                            device_id=device_id if device_id_changed else None,
-                            baudrate=baudrate if baudrate_changed else None,
-                        )
+                        if device_id_changed:
+                            await hub.write_device_id(device_id)
+
+                    # UITLEG: Stap 2, op het NIEUWE adres. Dit is het echte
+                    # verschil met vroeger. De oude hub kon na het schrijven van
+                    # het device-id gewoon `self.unit = device_id` doen en op
+                    # dezelfde client verder praten. Een unit die van buiten komt
+                    # zit vast aan het adres waarmee hij is opgevraagd, dus voor
+                    # de baudrate vragen we een nieuwe unit aan op het adres waar
+                    # de sensor sinds stap 1 naar luistert.
+                    #
+                    # De baudrate gaat bewust als laatste: die verbreekt de
+                    # verbinding tot de gateway op dezelfde snelheid staat.
+                    if baudrate_changed:
+                        async with temporary_unit(
+                            self.hass, current_params, device_id
+                        ) as unit:
+                            hub = ShtModbusHub(name, unit, device_id)
+                            await hub.write_baudrate(baudrate)
 
                 except Exception as e:
                     _LOGGER.warning(f"Could not write settings to sensor: {e}")
                     errors["base"] = "write_failed"
-                finally:
-                    if hub is not None:
-                        await hub.close()
 
             if not errors:
                 # Only update relevant data in the config entry

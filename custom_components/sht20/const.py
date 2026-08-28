@@ -52,7 +52,15 @@ DEFAULT_NOTIFY_CONNECTION_ERRORS_MOBILE = False
 DEFAULT_NOTIFY_CONNECTION_ERRORS_PERSISTENT = False
 DEFAULT_NOTIFY_CONNECTION_ERRORS_SERVICES = ""
 DEFAULT_CONNECTION_ERROR_NOTIFICATION_TITLE = "SHT20 verbindingsfout!"
-DEFAULT_CONNECTION_ERROR_DELAY = 60     # Seconds of failure before notifying
+# UITLEG: was 60. ConnectionMonitor rekent de drempel uit als
+# max(1, int(delay / scan_interval)). Met de standaard scan_interval van 10 was
+# 60 nog zes cycli, maar wie zijn scan_interval op 60 zet kwam uit op één: dan
+# is één hapering al genoeg voor een melding. 180 geeft drie cycli bij een
+# scan_interval van 60, en blijft ruim bij snellere intervallen.
+#
+# Let op: dit is de STANDAARD. Een bestaande config entry die deze optie al
+# opgeslagen heeft, houdt zijn eigen waarde; die moet via het optiescherm.
+DEFAULT_CONNECTION_ERROR_DELAY = 180    # Seconds of failure before notifying
 DEFAULT_NOTIFY_RECOVERY = True
 
 DEFAULT_QUIET_HOURS_ENABLED = False
@@ -60,6 +68,15 @@ DEFAULT_QUIET_HOURS_START = "23:00:00"
 DEFAULT_QUIET_HOURS_END = "07:00:00"
 
 # Communication robustness
+# UITLEG: MAX_READ_RETRIES en RETRY_DELAY_SECONDS worden nog steeds gebruikt.
+# modbus-connection herverbindt wel automatisch, maar herprobeert een time-out
+# NIET ("Neither backend retries timeouts, dropped links, or other exception
+# responses"). Zonder eigen retry zou één hapering meteen een verbindingsfout
+# melden. Zie _update_with_retry in hub.py.
+#
+# STALE_CONNECTION_SECONDS wordt NIET meer gebruikt: het forceren van een
+# reconnect na vijf minuten stilte was een pleister op zelfbeheerde clients.
+# Mag weg bij het opschonen voor de release.
 MAX_READ_RETRIES = 3
 RETRY_DELAY_SECONDS = 1
 STALE_CONNECTION_SECONDS = 300          # Force a reconnect after this long without data
