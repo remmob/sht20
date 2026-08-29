@@ -25,10 +25,36 @@
 #       rekent bij scan_interval 60 en delay 60 uit dat één mislukking genoeg is.
 #       MAX_READ_RETRIES en RETRY_DELAY_SECONDS blijven dus in gebruik.
 #
-#   De "stale connection"-controle
+#   De "stale connection"-controle op tijd (STALE_CONNECTION_SECONDS)
 #       Vijf minuten geen succesvolle read betekende: forceer een reconnect.
-#       Dat was een pleister op een client die er levend uitzag maar dood was.
-#       Niet meer nodig, dus STALE_CONNECTION_SECONDS wordt niet meer gebruikt.
+#       Vervangen door een teller in plaats van een klok, zie hieronder. Het
+#       ONDERLIGGENDE probleem is echter NIET verdwenen, en dat had ik eerst
+#       verkeerd ingeschat.
+#
+# Wat er BIJ is gekomen: vastgelopen-lijn-detectie
+#
+#       Er zijn twee manieren waarop een lijn kapot kan zijn, en de bibliotheek
+#       lost er maar een van op:
+#
+#       1. De verbinding is WEG (stekker eruit, gateway herstart, TCP-reset).
+#          Dat merkt de bibliotheek, en bij de volgende poll bouwt hij vanzelf
+#          een nieuwe verbinding op. Hier hoeven wij niets voor te doen.
+#
+#       2. De verbinding is VAST. De socket staat nog open en ziet er gezond
+#          uit, maar het apparaat erachter antwoordt niet meer. Hier grijpt de
+#          automatiek NIET in, want er valt niets te herverbinden: vanuit de
+#          socket gezien is er niets mis. Elke read loopt in een time-out op
+#          diezelfde dode lijn, en dat blijft zo.
+#
+#       Geval 2 is precies wat een netwerk-naar-serieel-brug doet, zoals de
+#       Elfin EW-11. Uit de documentatie: "Certain network bridges maintain open
+#       sockets while their connected devices become unresponsive, causing
+#       repeated timeouts on the same dead link."
+#
+#       De retry-lus hieronder helpt daar niet tegen: die probeert het drie keer
+#       over diezelfde vastgelopen verbinding. De oplossing is expliciet
+#       unit.disconnect() aanroepen, wat de vastgelopen lijn weggooit zodat de
+#       volgende poll een verse opzet.
 #
 #   _to_signed()
 #       Vervangen door signed=True op het veld in device.py.
@@ -53,13 +79,14 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from modbus_connection import ModbusError, ModbusUnit
+from modbus_connection import ModbusError, ModbusTimeoutError, ModbusUnit
 
 from .const import (
     BAUDRATE_CODES,
     BAUDRATE_VALUES,
     MAX_READ_RETRIES,
     RETRY_DELAY_SECONDS,
+    STUCK_LINK_TIMEOUTS,
 )
 from .device import Sht20Device
 
@@ -79,7 +106,12 @@ class ShtModbusHub:
         # logging en bij het wijzigen van het device-id.
         self.name = name
         self.unit_id = unit_id
+        self._unit = unit
         self._device = Sht20Device(unit)
+        # Aantal polls achter elkaar dat op een time-out uitliep. Zie
+        # read_realtime_data() voor waar dit op nul gaat en wat er gebeurt als
+        # de teller vol raakt.
+        self._consecutive_timeouts = 0
 
     # ------------------------------------------------------------------ lezen
 
@@ -134,7 +166,33 @@ class ShtModbusHub:
         # gebruikt ze om zijn entiteiten aan te maken. Zou ik ze hernoemen, dan
         # kregen alle sensoren een nieuwe entity-ID.
         """
-        await self._update_with_retry(self._device.readings, "meetwaarden")
+        # UITLEG: De teller voor een vastgelopen lijn zit BEWUST alleen hier en
+        # niet in read_settings(). De documentatie is daar expliciet over: tel in
+        # maar een coordinator, en wel die met het snelste interval, anders trekt
+        # de tweede een lopende poll onderuit. De instellingen worden alleen op
+        # verzoek gelezen, de meetwaarden elke scan_interval.
+        try:
+            await self._update_with_retry(self._device.readings, "meetwaarden")
+        except ModbusTimeoutError:
+            # Alleen time-outs tellen mee. Een ModbusConnectionError betekent dat
+            # de bibliotheek het verbindingsverlies zelf al heeft gezien; die
+            # herstelt vanzelf bij de volgende poll en hoeft niet geforceerd te
+            # worden.
+            self._consecutive_timeouts += 1
+            if self._consecutive_timeouts >= STUCK_LINK_TIMEOUTS:
+                _LOGGER.warning(
+                    "%s polls achter elkaar in een time-out; de verbinding lijkt "
+                    "vastgelopen. Verbinding verbroken zodat de volgende poll een "
+                    "nieuwe opzet.",
+                    self._consecutive_timeouts,
+                )
+                await self._unit.disconnect()
+                # Op nul, anders zou elke volgende poll opnieuw verbreken en
+                # krijgt een verse verbinding geen kans om zich te bewijzen.
+                self._consecutive_timeouts = 0
+            raise
+
+        self._consecutive_timeouts = 0
 
         return {
             "temperature": self._device.readings.temperature,

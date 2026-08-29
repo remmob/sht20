@@ -74,12 +74,18 @@ DEFAULT_QUIET_HOURS_END = "07:00:00"
 # responses"). Zonder eigen retry zou één hapering meteen een verbindingsfout
 # melden. Zie _update_with_retry in hub.py.
 #
-# STALE_CONNECTION_SECONDS wordt NIET meer gebruikt: het forceren van een
-# reconnect na vijf minuten stilte was een pleister op zelfbeheerde clients.
-# Mag weg bij het opschonen voor de release.
+# STALE_CONNECTION_SECONDS wordt NIET meer gebruikt. De gedachte erachter klopte
+# wel, maar een klok is er het verkeerde gereedschap voor: STUCK_LINK_TIMEOUTS
+# telt nu mislukte polls in plaats van seconden. Mag weg bij het opschonen.
 MAX_READ_RETRIES = 3
 RETRY_DELAY_SECONDS = 1
 STALE_CONNECTION_SECONDS = 300          # Force a reconnect after this long without data
+
+# Zoveel polls achter elkaar in een time-out betekent een vastgelopen lijn: de
+# socket staat nog open maar het apparaat erachter zwijgt. Daar helpt automatisch
+# herverbinden niet tegen, want er is niets om te herverbinden. Zie de uitleg
+# bovenaan hub.py.
+STUCK_LINK_TIMEOUTS = 3
 DEFAULT_PRESSURE = 1013.25      # Standard atmosphere at sea level
 
 # Units for the calculated sensors
