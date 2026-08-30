@@ -1,15 +1,9 @@
-"""Modbus-verbinding voor de SHT20-integratie.
+"""Modbus connection for the SHT20 integration.
 
-# UITLEG: DIT BESTAND IS HELEMAAL NIEUW.
-#
-# Vroeger bouwde hub.py zelf zijn pymodbus-client op (AsyncModbusTcpClient en
-# vrienden), hield die vast, en sloot hem weer. Dat doet dit bestand nu, maar
-# een niveau abstracter: het levert een "unit" op. Een unit is een handvat naar
-# één apparaat op een Modbus-lijn. Wie de verbinding eronder bezit en wanneer
-# die open- en dichtgaat, is niet meer onze zorg.
-#
-# Waarom een apart bestand? Omdat hier het enige verschil zit tussen Home
-# Assistant 2026.8 en 2026.9. De rest van de integratie merkt daar niets van.
+Builds a "unit": a handle to one device on a Modbus line. Ownership of the
+underlying connection (who opens/closes it, and when) is not this module's
+concern — it is either handed off to Home Assistant's shared modbus connection
+(2026.9+) or owned by us via modbus_connection (older versions).
 """
 
 from __future__ import annotations
@@ -38,15 +32,12 @@ from .const import (
     DEFAULT_PORT,
 )
 
-# UITLEG: Hier zit de hele versiecompatibiliteit.
+# `async_get_unit` lives in Home Assistant's own modbus integration but only
+# exists from 2026.9 onward. On 2026.8 this import fails and we fall back to
+# our own connection, so one codebase supports both versions.
 #
-# `async_get_unit` zit in de modbus-integratie van Home Assistant zelf, maar
-# bestaat pas vanaf 2026.9. Op 2026.8 mislukt deze import, en dan vallen we
-# terug op een eigen verbinding. Eén codebase die op beide versies draait,
-# in plaats van twee aparte releases.
-#
-# Deze terugval blijft tot september 2027 staan, een jaar na 2026.9. Daarna
-# mag dit try/except-blok eruit en gaat de ondergrens in hacs.json omhoog.
+# Remove this fallback (and raise the floor in hacs.json) around September
+# 2027, one year after 2026.9.
 try:
     from homeassistant.components.modbus import (
         async_get_temporary_unit,
@@ -54,36 +45,29 @@ try:
     )
 
     HAS_SHARED_CONNECTION = True
-except ImportError:  # Home Assistant ouder dan 2026.9
+except ImportError:  # Home Assistant older than 2026.9
     async_get_temporary_unit = None
     async_get_unit = None
     HAS_SHARED_CONNECTION = False
 
 
-# UITLEG: Twee labels voor de tijdelijke diagnose-sensor, zodat je in de
-# interface kunt zien welke van de twee wegen hierboven actief is.
+# Labels for the diagnostic sensor that shows which of the two connection
+# methods above is active.
 METHOD_SHARED = "gedeeld (HA modbus)"
 METHOD_OWN = "eigen verbinding"
 
 
 def active_method() -> str:
-    """Geef terug welke verbindingsmethode deze Home Assistant gebruikt."""
+    """Return which connection method this Home Assistant instance uses."""
     return METHOD_SHARED if HAS_SHARED_CONNECTION else METHOD_OWN
 
 
 def build_params(
     data: Mapping[str, Any],
 ) -> ModbusTcpParams | ModbusUdpParams | ModbusSerialParams:
-    """Bouw de verbindingsparameters uit de gegevens van de config entry.
+    """Build the connection parameters from the config entry data.
 
-    # UITLEG: Dit verving het if/elif-blok in hub.connect(), waar per modus een
-    # andere pymodbus-clientklasse werd aangemaakt. Nu maken we geen client meer
-    # maar een klein beschrijvend object. Er gebeurt hier geen netwerkverkeer;
-    # het is puur "zo is dit apparaat te bereiken".
-    #
-    # Bijkomend voordeel: de try/except rond AsyncModbusUdpClient in de oude
-    # hub.py is niet meer nodig. Die was er omdat oudere pymodbus-versies geen
-    # UDP-client hadden. ModbusUdpParams bestaat altijd.
+    This is a description only — no network traffic happens here.
     """
     mode = data[CONF_MODE]
 
@@ -105,7 +89,7 @@ def build_params(
             baudrate=int(data.get(CONF_BAUDRATE, DEFAULT_BAUDRATE)),
         )
 
-    raise ValueError(f"Niet-ondersteunde modus: {mode!r}")
+    raise ValueError(f"Unsupported mode: {mode!r}")
 
 
 def async_setup_unit(
@@ -114,28 +98,22 @@ def async_setup_unit(
     params: ModbusTcpParams | ModbusUdpParams | ModbusSerialParams,
     unit_id: int,
 ) -> ModbusUnit:
-    """Geef een unit terug voor deze config entry.
+    """Return a unit for this config entry.
 
-    # UITLEG: Dit is de kern van de hele ombouw, in twee takken.
-    #
-    # Op 2026.9+ vraagt `async_get_unit` een unit aan bij Home Assistant. Praten
-    # twee integraties met dezelfde gateway, dan krijgen ze allebei een unit op
-    # DEZELFDE onderliggende socket en gaan hun requests netjes achter elkaar
-    # aan. Precies wat er nodig is om straks de SHT20 en de comfoair samen op
-    # één Elfin EW-11 te kunnen hangen. Home Assistant sluit die verbinding zelf
-    # zodra de laatste config entry hem loslaat.
-    #
-    # Op 2026.8 maken we onze eigen verbinding aan. Functioneel identiek, alleen
-    # niet gedeeld: elke integratie houdt zijn eigen socket. Dat is het gedrag
-    # dat de integratie voorheen altijd had.
+    On 2026.9+, `async_get_unit` requests a unit from Home Assistant. Two
+    integrations talking to the same gateway get a unit on the same
+    underlying socket and their requests queue behind each other, which is
+    what lets the SHT20 and other integrations share one Modbus bridge (e.g.
+    an Elfin EW-11). Home Assistant closes the shared connection itself once
+    the last config entry releases it.
+
+    On 2026.8 we open our own connection instead. Functionally identical,
+    just not shared: every integration keeps its own socket.
     """
     if async_get_unit is not None:
         return async_get_unit(hass, entry, params, unit_id)
 
     connection = ModbusConnection(params)
-    # UITLEG: `async_on_unload` zorgt dat Home Assistant de verbinding sluit als
-    # de integratie wordt uitgeladen. Dit verving de handmatige `await
-    # hub.close()` in async_unload_entry.
     entry.async_on_unload(connection.close)
     return connection.for_unit(unit_id)
 
@@ -146,18 +124,15 @@ async def temporary_unit(
     params: ModbusTcpParams | ModbusUdpParams | ModbusSerialParams,
     unit_id: int,
 ) -> AsyncIterator[ModbusUnit]:
-    """Geef een unit voor de duur van een config flow.
+    """Return a unit for the duration of a config flow.
 
-    # UITLEG: De config flow praat met de sensor terwijl er nog geen config
-    # entry is om een verbinding aan op te hangen (bij installatie), of terwijl
-    # er er al één draait (bij het wijzigen van instellingen). Vroeger bouwde de
-    # config flow daarvoor een tweede, eigen hub op en sloot die weer.
-    #
-    # Dat tweede socket is precies wat een EW-11 niet trekt. Op 2026.9 lost
-    # `async_get_temporary_unit` dat op: bestaat er al een verbinding naar dit
-    # apparaat, dan lift de config flow daarop mee in plaats van er een tweede
-    # naast te zetten. Alleen een verbinding die hier zelf geopend is, wordt bij
-    # het verlaten weer gesloten.
+    The config flow talks to the sensor before a config entry exists to hang
+    a connection off (during setup), or while one is already running (when
+    changing settings). On 2026.9+, `async_get_temporary_unit` piggybacks on
+    an existing connection to the same device instead of opening a second
+    socket next to it — important for bridges like the Elfin EW-11, which
+    cannot handle a second connection. Only a connection opened here is
+    closed again on exit.
     """
     if async_get_temporary_unit is not None:
         async with async_get_temporary_unit(hass, params, unit_id) as unit:

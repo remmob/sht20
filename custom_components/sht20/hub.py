@@ -1,77 +1,22 @@
-"""Leest en schrijft de SHT20 via een Modbus-unit.
+"""Reads and writes the SHT20 over a Modbus unit.
 
-# UITLEG: DIT BESTAND IS VRIJWEL HELEMAAL HERSCHREVEN. Van ~230 regels naar ~110,
-# en een flink deel daarvan is commentaar.
-#
-# Wat er UIT is gegaan, en waarom:
-#
-#   connect() / close() / _reset_client()
-#       Wij bezitten de verbinding niet meer. Die komt van buiten binnen als
-#       "unit" en wordt beheerd door Home Assistant of door connection.py.
-#       Verbinden gebeurt vanzelf bij de eerste read.
-#
-#   _read_input_registers() met zijn client-beheer
-#       Dat waren ~45 regels: verbinden, bij elke fout de client weggooien en
-#       opnieuw opbouwen. Het herverbinden doet de bibliotheek nu zelf.
-#
-#       LET OP: het HERPROBEREN doet ze NIET. Uit de documentatie van
-#       modbus-connection: "Neither backend retries timeouts, dropped links, or
-#       other exception responses." Alleen een SERVER_DEVICE_BUSY-antwoord wordt
-#       herhaald. Een time-out komt er dus meteen uit.
-#
-#       Daarom is de retry-lus hieronder bewust BEHOUDEN, in een veel kortere
-#       vorm (_update_with_retry). Zonder die lus zou één verstoorde meting
-#       direct een verbindingsfout-melding opleveren, want ConnectionMonitor
-#       rekent bij scan_interval 60 en delay 60 uit dat één mislukking genoeg is.
-#       MAX_READ_RETRIES en RETRY_DELAY_SECONDS blijven dus in gebruik.
-#
-#   De "stale connection"-controle op tijd (STALE_CONNECTION_SECONDS)
-#       Vijf minuten geen succesvolle read betekende: forceer een reconnect.
-#       Vervangen door een teller in plaats van een klok, zie hieronder. Het
-#       ONDERLIGGENDE probleem is echter NIET verdwenen, en dat had ik eerst
-#       verkeerd ingeschat.
-#
-# Wat er BIJ is gekomen: vastgelopen-lijn-detectie
-#
-#       Er zijn twee manieren waarop een lijn kapot kan zijn, en de bibliotheek
-#       lost er maar een van op:
-#
-#       1. De verbinding is WEG (stekker eruit, gateway herstart, TCP-reset).
-#          Dat merkt de bibliotheek, en bij de volgende poll bouwt hij vanzelf
-#          een nieuwe verbinding op. Hier hoeven wij niets voor te doen.
-#
-#       2. De verbinding is VAST. De socket staat nog open en ziet er gezond
-#          uit, maar het apparaat erachter antwoordt niet meer. Hier grijpt de
-#          automatiek NIET in, want er valt niets te herverbinden: vanuit de
-#          socket gezien is er niets mis. Elke read loopt in een time-out op
-#          diezelfde dode lijn, en dat blijft zo.
-#
-#       Geval 2 is precies wat een netwerk-naar-serieel-brug doet, zoals de
-#       Elfin EW-11. Uit de documentatie: "Certain network bridges maintain open
-#       sockets while their connected devices become unresponsive, causing
-#       repeated timeouts on the same dead link."
-#
-#       De retry-lus hieronder helpt daar niet tegen: die probeert het drie keer
-#       over diezelfde vastgelopen verbinding. De oplossing is expliciet
-#       unit.disconnect() aanroepen, wat de vastgelopen lijn weggooit zodat de
-#       volgende poll een verse opzet.
-#
-#   _to_signed()
-#       Vervangen door signed=True op het veld in device.py.
-#
-#   Het convert_to_registers-blok in write_correction_settings()
-#       Handmatig een int16-payload bouwen om twee registers te schrijven.
-#       Vervangen door één write() per veld.
-#
-#   De import van pymodbus
-#       Helemaal weg. Dat repareert meteen een sluimerende fout: manifest.json
-#       gaf pymodbus nergens op als requirement, dus deze integratie werkte
-#       alleen doordat een ándere integratie op dezelfde machine pymodbus
-#       binnenhaalde. Op een schone installatie ging dat mis.
-#
-# Wat er IN is gebleven: de baudrate-eigenaardigheid. Sommige sensoren slaan de
-# werkelijke baudrate op, andere een code. Dat is apparaatkennis, geen
-# transportkennis, en hoort dus hier thuis.
+Two things worth knowing that are not obvious from the code:
+
+Retries: modbus_connection reconnects automatically after a dropped
+connection, but it does NOT retry timeouts or other exception responses
+(only a SERVER_DEVICE_BUSY response is retried). `_update_with_retry` below
+provides that retry ourselves — without it, a single glitch would surface as
+a connection error, since ConnectionMonitor can be configured with a delay
+as low as one scan interval.
+
+Stuck-link detection: a Modbus line can fail in two ways. If the connection
+itself drops (cable pulled, gateway restarted, TCP reset), the library
+notices and reconnects on the next poll — nothing for us to do. But a
+network-to-serial bridge (e.g. an Elfin EW-11) can keep a socket open while
+the device behind it stops responding; the socket looks healthy so nothing
+triggers a reconnect, and every read just times out on the same dead link.
+`_consecutive_timeouts` in `read_realtime_data` detects that pattern and
+forces a disconnect so the next poll opens a fresh connection.
 """
 
 from __future__ import annotations
@@ -94,40 +39,24 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class ShtModbusHub:
-    """Dunne laag rond het registermodel van de sensor."""
+    """Thin layer around the sensor's register model."""
 
     def __init__(self, name: str, unit: ModbusUnit, unit_id: int) -> None:
-        # UITLEG: De constructor nam vroeger hass, name, mode, device_id, host,
-        # port, device en baudrate. Alles wat met de verbinding te maken had is
-        # weg; er komt nu één kant-en-klare unit binnen. Wie die unit maakt en
-        # hoe, staat in connection.py.
-        #
-        # unit_id houden we alleen bij om te weten op welk adres we praten, voor
-        # logging en bij het wijzigen van het device-id.
         self.name = name
+        # Kept only to know which address we are talking to, for logging and
+        # when changing the device ID.
         self.unit_id = unit_id
         self._unit = unit
         self._device = Sht20Device(unit)
-        # Aantal polls achter elkaar dat op een time-out uitliep. Zie
-        # read_realtime_data() voor waar dit op nul gaat en wat er gebeurt als
-        # de teller vol raakt.
+        # Number of consecutive polls that ended in a timeout. See
+        # read_realtime_data() for where this resets and what happens when
+        # the counter fills up.
         self._consecutive_timeouts = 0
 
-    # ------------------------------------------------------------------ lezen
+    # ------------------------------------------------------------------ read
 
     async def _update_with_retry(self, component, what: str) -> None:
-        """Werk een component bij, met dezelfde pogingen als voorheen.
-
-        # UITLEG: Dit is wat er over is van de oude retry-lus van ~45 regels.
-        # De bibliotheek herverbindt zelf, dus het weggooien en opnieuw opbouwen
-        # van de client is weg. Wat blijft is het herproberen zelf, want dat doet
-        # de bibliotheek nadrukkelijk NIET voor time-outs.
-        #
-        # Zonder dit zou één hapering meteen doorslaan naar UpdateFailed: de
-        # entiteiten worden "niet beschikbaar" en ConnectionMonitor stuurt een
-        # verbindingsfout. Dat is precies het gedrag dat v1.1.0 niet had, en dat
-        # willen we niet stilletjes veranderen.
-        """
+        """Update a component, retrying timeouts since the library does not."""
         last_error: ModbusError | None = None
 
         for attempt in range(MAX_READ_RETRIES):
@@ -137,58 +66,47 @@ class ShtModbusHub:
             except ModbusError as err:
                 last_error = err
                 _LOGGER.debug(
-                    "Lezen van %s mislukt (poging %s/%s): %s",
+                    "Reading %s failed (attempt %s/%s): %s",
                     what, attempt + 1, MAX_READ_RETRIES, err,
                 )
                 if attempt < MAX_READ_RETRIES - 1:
                     await asyncio.sleep(RETRY_DELAY_SECONDS)
 
         _LOGGER.warning(
-            "Lezen van %s mislukt na %s pogingen: %s",
+            "Reading %s failed after %s attempts: %s",
             what, MAX_READ_RETRIES, last_error,
         )
         raise last_error
 
     async def read_realtime_data(self) -> dict:
-        """Lees temperatuur en luchtvochtigheid als ruwe registerwaarden.
+        """Read temperature and humidity as raw register values.
 
-        # UITLEG: Dit was een read van adres 1 met count 2, gevolgd door het met
-        # de hand uitpakken van result.registers[0] en [1]. Nu haalt
-        # async_update() de hele component op en staan de waarden als gewone
-        # attributen klaar.
-        #
-        # De asyncio.sleep(0.1) die hier stond is weg. Die gaf de bus even rust;
-        # daar heeft de bibliotheek `message_spacing` voor, in te stellen per
-        # unit. Nu niet nodig, en als de bus straks twee apparaten draagt is dát
-        # de plek om aan te draaien.
-        #
-        # De sleutels van dit dict blijven exact hetzelfde, want sensor.py
-        # gebruikt ze om zijn entiteiten aan te maken. Zou ik ze hernoemen, dan
-        # kregen alle sensoren een nieuwe entity-ID.
+        The dict keys are relied on by sensor.py to build its entities;
+        renaming them would give every sensor a new entity ID.
         """
-        # UITLEG: De teller voor een vastgelopen lijn zit BEWUST alleen hier en
-        # niet in read_settings(). De documentatie is daar expliciet over: tel in
-        # maar een coordinator, en wel die met het snelste interval, anders trekt
-        # de tweede een lopende poll onderuit. De instellingen worden alleen op
-        # verzoek gelezen, de meetwaarden elke scan_interval.
+        # The stuck-link counter is deliberately only incremented here and
+        # not in read_settings(): count on a single coordinator, the one
+        # with the fastest interval, otherwise a second coordinator could
+        # cut off a poll that is already in flight. Settings are only read
+        # on demand, readings on every scan_interval.
         try:
-            await self._update_with_retry(self._device.readings, "meetwaarden")
+            await self._update_with_retry(self._device.readings, "readings")
         except ModbusTimeoutError:
-            # Alleen time-outs tellen mee. Een ModbusConnectionError betekent dat
-            # de bibliotheek het verbindingsverlies zelf al heeft gezien; die
-            # herstelt vanzelf bij de volgende poll en hoeft niet geforceerd te
-            # worden.
+            # Only timeouts count. A ModbusConnectionError means the library
+            # already noticed the dropped connection itself and will recover
+            # on the next poll without help.
             self._consecutive_timeouts += 1
             if self._consecutive_timeouts >= STUCK_LINK_TIMEOUTS:
                 _LOGGER.warning(
-                    "%s polls achter elkaar in een time-out; de verbinding lijkt "
-                    "vastgelopen. Verbinding verbroken zodat de volgende poll een "
-                    "nieuwe opzet.",
+                    "%s consecutive polls timed out; the connection appears "
+                    "stuck. Disconnecting so the next poll opens a fresh "
+                    "connection.",
                     self._consecutive_timeouts,
                 )
                 await self._unit.disconnect()
-                # Op nul, anders zou elke volgende poll opnieuw verbreken en
-                # krijgt een verse verbinding geen kans om zich te bewijzen.
+                # Reset to zero, otherwise every following poll would
+                # disconnect again and a fresh connection would never get a
+                # chance to prove itself.
                 self._consecutive_timeouts = 0
             raise
 
@@ -200,8 +118,8 @@ class ShtModbusHub:
         }
 
     async def read_settings(self) -> dict:
-        """Lees de vier instellingen die in de sensor zelf staan."""
-        await self._update_with_retry(self._device.settings, "instellingen")
+        """Read the four settings stored in the sensor itself."""
+        await self._update_with_retry(self._device.settings, "settings")
         settings = self._device.settings
 
         return {
@@ -211,63 +129,49 @@ class ShtModbusHub:
             "hum_offset": settings.hum_offset,
         }
 
-    # -------------------------------------------------------------- schrijven
+    # -------------------------------------------------------------- write
 
     async def write_correction_settings(
         self, temp_offset: float, hum_offset: float
     ) -> None:
-        """Schrijf de twee correctiewaarden naar de sensor.
-
-        # UITLEG: Vroeger werden deze twee in één keer geschreven (functiecode
-        # 16, twee registers tegelijk) met een zelfgebouwde payload. Nu zijn het
-        # twee losse schrijfacties (functiecode 06). Dat is één request meer,
-        # maar het resultaat in de sensor is hetzelfde, en de omrekening van
-        # 0,5 naar registerwaarde 5 doet het veld zelf.
-        """
+        """Write the two correction values to the sensor."""
         await self._device.settings.write("temp_offset", temp_offset)
         await self._device.settings.write("hum_offset", hum_offset)
 
     async def write_device_id(self, device_id: int) -> None:
-        """Schrijf een nieuw Modbus-adres naar de sensor.
+        """Write a new Modbus address to the sensor.
 
-        # UITLEG: LET OP, dit is het gevoeligste stuk van de integratie. Na deze
-        # schrijfactie luistert de sensor op een ánder adres. Alles wat daarna
-        # nog via deze hub gaat, praat tegen een adres waar niemand antwoordt.
-        #
-        # Vroeger loste hub.py dat zelf op met `self.unit = device_id`, waarna
-        # de volgende schrijfactie automatisch het nieuwe adres gebruikte. Dat
-        # kan nu niet meer: de unit komt van buiten en zit vast aan het adres
-        # waarmee hij is opgevraagd.
-        #
-        # Daarom is dit gesplitst van write_baudrate(), wat vroeger één methode
-        # write_device_settings() was. De aanroeper in config_flow.py vraagt na
-        # deze schrijfactie een níeuwe unit aan op het nieuwe adres.
+        This is the most sensitive operation in the integration: after this
+        write, the sensor listens on a different address, and this hub's
+        unit still points at the old one. Anything that still needs to talk
+        to the sensor must request a new unit at the new address — the
+        caller in config_flow.py does this after calling write_device_id().
+        This is why it is split from write_baudrate().
         """
-        _LOGGER.debug("Schrijf nieuw device-id %s (was %s)", device_id, self.unit_id)
+        _LOGGER.debug("Writing new device ID %s (was %s)", device_id, self.unit_id)
         await self._device.settings.write("device_id", device_id)
 
     async def write_baudrate(self, baudrate: int) -> None:
-        """Schrijf een nieuwe baudrate naar de sensor.
+        """Write a new baud rate to the sensor.
 
-        # UITLEG: Ook dit breekt de verbinding, en wel tot de gateway op
-        # dezelfde snelheid staat. Daarom gebeurt dit altijd als laatste.
+        This breaks the connection until the gateway is set to the same
+        speed, so it must always happen last.
         """
         if baudrate not in BAUDRATE_VALUES:
-            raise ValueError(f"Niet-ondersteunde baudrate: {baudrate}")
+            raise ValueError(f"Unsupported baudrate: {baudrate}")
 
         await self._device.settings.write(
             "baudrate_raw", await self._encode_baudrate(baudrate)
         )
 
-    # ---------------------------------------------------- baudrate-vertaling
+    # ---------------------------------------------------- baudrate translation
 
     @staticmethod
     def _decode_baudrate(raw: int | None) -> int | None:
-        """Zet de ruwe registerwaarde om naar een baudrate.
+        """Convert the raw register value to a baud rate.
 
-        # UITLEG: Ongewijzigd overgenomen uit de oude read_settings(). Sommige
-        # sensoren zetten er 9600 in, andere de code 0. Staat er een bekende
-        # baudrate, dan is dat het antwoord; anders lezen we het als code.
+        Some sensors store 9600 directly, others store the code 0. A known
+        baud rate wins if present; otherwise the value is read as a code.
         """
         if raw is None:
             return None
@@ -276,22 +180,19 @@ class ShtModbusHub:
 
         baudrate = BAUDRATE_CODES.get(raw)
         if baudrate is None:
-            _LOGGER.warning("Onbekende baudrate in het instellingenregister: %s", raw)
+            _LOGGER.warning("Unknown baudrate in the settings register: %s", raw)
         return baudrate
 
     async def _encode_baudrate(self, baudrate: int) -> int:
-        """Bepaal wat er in het register moet, in het formaat van dit apparaat.
+        """Work out what to write to the register, in this device's format.
 
-        # UITLEG: Ongewijzigd van opzet. We lezen eerst wat er nu staat om te
-        # zien welk van de twee formaten deze sensor gebruikt, en schrijven dan
-        # in datzelfde formaat terug. Het verschil met vroeger is alleen hóe we
-        # dat lezen: toen een losse read_holding_registers, nu een async_update()
-        # van de component.
+        We first read what is currently stored to see which of the two
+        formats this sensor uses, then write back in that same format.
         """
         await self._device.settings.async_update()
         current = self._device.settings.baudrate_raw
 
         if current in BAUDRATE_CODES:
-            # Deze sensor slaat een code op in plaats van de baudrate zelf
+            # This sensor stores a code instead of the baud rate itself
             return BAUDRATE_VALUES[baudrate]
         return baudrate

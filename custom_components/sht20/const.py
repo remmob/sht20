@@ -52,14 +52,9 @@ DEFAULT_NOTIFY_CONNECTION_ERRORS_MOBILE = False
 DEFAULT_NOTIFY_CONNECTION_ERRORS_PERSISTENT = False
 DEFAULT_NOTIFY_CONNECTION_ERRORS_SERVICES = ""
 DEFAULT_CONNECTION_ERROR_NOTIFICATION_TITLE = "SHT20 verbindingsfout!"
-# UITLEG: was 60. ConnectionMonitor rekent de drempel uit als
-# max(1, int(delay / scan_interval)). Met de standaard scan_interval van 10 was
-# 60 nog zes cycli, maar wie zijn scan_interval op 60 zet kwam uit op één: dan
-# is één hapering al genoeg voor een melding. 180 geeft drie cycli bij een
-# scan_interval van 60, en blijft ruim bij snellere intervallen.
-#
-# Let op: dit is de STANDAARD. Een bestaande config entry die deze optie al
-# opgeslagen heeft, houdt zijn eigen waarde; die moet via het optiescherm.
+# ConnectionMonitor derives the failure threshold as max(1, int(delay / scan_interval)).
+# 180 gives 3 cycles at a 60s scan_interval while staying generous at faster intervals.
+# This is only the default; an existing config entry keeps its own stored value.
 DEFAULT_CONNECTION_ERROR_DELAY = 180    # Seconds of failure before notifying
 DEFAULT_NOTIFY_RECOVERY = True
 
@@ -68,23 +63,15 @@ DEFAULT_QUIET_HOURS_START = "23:00:00"
 DEFAULT_QUIET_HOURS_END = "07:00:00"
 
 # Communication robustness
-# UITLEG: MAX_READ_RETRIES en RETRY_DELAY_SECONDS worden nog steeds gebruikt.
-# modbus-connection herverbindt wel automatisch, maar herprobeert een time-out
-# NIET ("Neither backend retries timeouts, dropped links, or other exception
-# responses"). Zonder eigen retry zou één hapering meteen een verbindingsfout
-# melden. Zie _update_with_retry in hub.py.
-#
-# STALE_CONNECTION_SECONDS wordt NIET meer gebruikt. De gedachte erachter klopte
-# wel, maar een klok is er het verkeerde gereedschap voor: STUCK_LINK_TIMEOUTS
-# telt nu mislukte polls in plaats van seconden. Mag weg bij het opschonen.
+# modbus-connection reconnects automatically but does not retry timeouts, so
+# MAX_READ_RETRIES/RETRY_DELAY_SECONDS provide our own retry. See
+# _update_with_retry in hub.py.
 MAX_READ_RETRIES = 3
 RETRY_DELAY_SECONDS = 1
-STALE_CONNECTION_SECONDS = 300          # Force a reconnect after this long without data
 
-# Zoveel polls achter elkaar in een time-out betekent een vastgelopen lijn: de
-# socket staat nog open maar het apparaat erachter zwijgt. Daar helpt automatisch
-# herverbinden niet tegen, want er is niets om te herverbinden. Zie de uitleg
-# bovenaan hub.py.
+# This many consecutive timeouts means a stuck link: the socket is still open
+# but the device behind it has stopped responding, so automatic reconnection
+# has nothing to reconnect. See _consecutive_timeouts handling in hub.py.
 STUCK_LINK_TIMEOUTS = 3
 DEFAULT_PRESSURE = 1013.25      # Standard atmosphere at sea level
 

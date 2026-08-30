@@ -14,7 +14,6 @@ from homeassistant.const import (
 )
 
 from . import calculations
-# UITLEG: nieuw, alleen voor de tijdelijke diagnose-sensor onderaan dit bestand.
 from .connection import HAS_SHARED_CONNECTION, active_method
 from .const import (
     DOMAIN,
@@ -101,8 +100,6 @@ def _scaled_value(coordinator, entry, key):
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]["realtime"]
 
-    #_LOGGER.debug("Setting up SHT20 sensors: data=%s | options=%s", entry.data, entry.options)
-
     entities = [
         Sht20Sensor(coordinator, entry, key)
         for key in SENSOR_TYPES
@@ -116,11 +113,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
             for key in CALCULATED_SENSOR_TYPES
         )
 
-    # UITLEG: TIJDELIJK. Deze sensor hoort niet bij het apparaat maar bij de
-    # ombouw: hij laat zien welke van de twee verbindingsmethodes deze Home
-    # Assistant gebruikt. Zo is in één oogopslag te zien of je op het gedeelde
-    # pad zit (2026.9+) of op de terugval (ouder). Weghalen zodra de ombouw
-    # bewezen is, of omzetten naar een attribuut op een bestaande sensor.
+    # TEMPORARY: shows which of the two connection methods this Home
+    # Assistant instance uses. Remove once the 2026.9 migration is proven, or
+    # fold into an attribute on an existing sensor.
     entities.append(Sht20ConnectionMethodSensor(coordinator, entry))
 
     async_add_entities(entities)
@@ -195,21 +190,13 @@ class Sht20CalculatedSensor(CoordinatorEntity, SensorEntity):
 
 
 class Sht20ConnectionMethodSensor(CoordinatorEntity, SensorEntity):
-    """TIJDELIJK: toont welke Modbus-verbindingsmethode actief is.
+    """TEMPORARY: shows which Modbus connection method is active.
 
-    # UITLEG: DEZE KLASSE IS NIEUW EN BEDOELD OM WEER TE VERDWIJNEN.
-    #
-    # Hij leest geen register uit. De waarde komt uit connection.py en zegt
-    # alleen of `async_get_unit` van Home Assistant beschikbaar was:
-    #
-    #   "gedeeld (HA modbus)"  -> HA 2026.9 of nieuwer, verbinding wordt gedeeld
-    #   "eigen verbinding"     -> ouder, deze integratie opent zijn eigen socket
-    #
-    # Het is een diagnose-entiteit (EntityCategory.DIAGNOSTIC), dus hij komt
-    # onderaan bij het apparaat te staan en niet tussen de meetwaarden.
-    #
-    # Dit is de énige entiteit die erbij hoort te komen. Verschijnt er nog iets
-    # anders, dan is er per ongeluk een sleutel veranderd en klopt er iets niet.
+    Reads no register — the value comes from connection.py and reflects only
+    whether Home Assistant's `async_get_unit` was available (2026.9+, shared
+    connection) or not (older, this integration opens its own socket). A
+    diagnostic entity (EntityCategory.DIAGNOSTIC), so it appears at the
+    bottom of the device rather than among the measurements.
     """
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -229,8 +216,8 @@ class Sht20ConnectionMethodSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        # UITLEG: De HA-versie erbij, zodat een screenshot meteen laat zien
-        # waaróm deze methode gekozen is.
+        # Include the HA version so a screenshot shows at a glance why this
+        # method was chosen.
         return {
             "gedeelde_verbinding_beschikbaar": HAS_SHARED_CONNECTION,
             "home_assistant_versie": HA_VERSION,

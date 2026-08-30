@@ -77,7 +77,6 @@ def _get_notify_service_options(hass) -> list:
     services = hass.services.async_services().get("notify", {})
     return sorted(name for name in services if name.startswith("mobile_app_"))
 
-
 def _services_default(value) -> list:
     """Turn a stored comma separated string back into a list for the selector."""
     if isinstance(value, list):
@@ -86,13 +85,11 @@ def _services_default(value) -> list:
         return [s.strip() for s in value.split(",") if s.strip()]
     return []
 
-
 def _normalize_services(value) -> str:
     """Store the selected services as a comma separated string."""
     if isinstance(value, list):
         return ", ".join(str(v).strip() for v in value if str(v).strip())
     return str(value).strip() if value else ""
-
 
 def _notify_services_selector(hass) -> selector.SelectSelector:
     return selector.SelectSelector(
@@ -104,9 +101,6 @@ def _notify_services_selector(hass) -> selector.SelectSelector:
         )
     )
 
-
-# A dropdown with the current value preselected. The frontend compares option
-# values as strings, so the options and the default have to be strings too.
 BAUDRATE_SELECTOR = selector.SelectSelector(
     selector.SelectSelectorConfig(
         options=[str(baudrate) for baudrate in ALLOWED_BAUDRATES],
@@ -123,10 +117,6 @@ class Sht20ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Get the options flow for this integration"""
         return Sht20OptionsFlowHandler(config_entry)
 
-    async def get_serial_ports():
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, lambda: [port.device for port in serial.tools.list_ports.comports()])
-    
     async def async_step_user(self, user_input = None):
         if user_input is not None:
             self._data = user_input.copy()
@@ -160,7 +150,6 @@ class Sht20ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             host = user_input.get(CONF_HOST)
 
-            # Valideer IP-adres
             try:
                 ipaddress.ip_address(host)
             except ValueError:
@@ -219,14 +208,11 @@ class Sht20ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def _create_entry(self) -> FlowResult:
-        # UITLEG: Hier werd een tweede, eigen hub opgebouwd om de sensor even uit
-        # te lezen tijdens de installatie, met een `await hub.connect()` erbij.
-        # Nu vragen we een tijdelijke unit aan.
-        #
-        # Het verschil is groter dan het lijkt: op HA 2026.9+ lift die tijdelijke
-        # unit mee op een verbinding die al openstaat naar dezelfde gateway, in
-        # plaats van er een tweede socket naast te zetten. Precies het probleem
-        # dat een Elfin EW-11 niet aankan.
+        # A temporary unit lets us read the sensor's settings during setup.
+        # On HA 2026.9+ this piggybacks on a connection already open to the
+        # same gateway instead of opening a second socket next to it, which
+        # matters for bridges like the Elfin EW-11 that cannot handle a
+        # second connection.
         from .connection import build_params, temporary_unit
         from .hub import ShtModbusHub
 
@@ -314,18 +300,18 @@ class Sht20OptionsFlowHandler(OptionsFlow):
 
             # Only talk to the sensor when something it stores actually changed
             if offsets_changed or device_id_changed or baudrate_changed:
-                # UITLEG: De verbindingsinstellingen zoals ze NU zijn. Bij rtu
-                # hoort de huidige baudrate daarbij, want die bepaalt hoe we de
-                # sensor op dit moment kunnen bereiken.
+                # The connection settings as they are RIGHT NOW. For rtu that
+                # includes the current baud rate, since that determines how
+                # the sensor can be reached at this moment.
                 name = self.config_entry.data[CONF_NAME]
                 current_params = build_params(
                     {**self.config_entry.data, CONF_BAUDRATE: current_baudrate}
                 )
 
                 try:
-                    # UITLEG: Stap 1, op het HUIDIGE adres. De offsets eerst,
-                    # want die veranderen niets aan de bereikbaarheid. Daarna het
-                    # device-id, wat het adres van de sensor verzet.
+                    # Step 1, at the CURRENT address. Offsets first since
+                    # they do not affect reachability, then the device ID,
+                    # which moves the sensor to a new address.
                     async with temporary_unit(
                         self.hass, current_params, current_device_id
                     ) as unit:
@@ -339,16 +325,11 @@ class Sht20OptionsFlowHandler(OptionsFlow):
                         if device_id_changed:
                             await hub.write_device_id(device_id)
 
-                    # UITLEG: Stap 2, op het NIEUWE adres. Dit is het echte
-                    # verschil met vroeger. De oude hub kon na het schrijven van
-                    # het device-id gewoon `self.unit = device_id` doen en op
-                    # dezelfde client verder praten. Een unit die van buiten komt
-                    # zit vast aan het adres waarmee hij is opgevraagd, dus voor
-                    # de baudrate vragen we een nieuwe unit aan op het adres waar
-                    # de sensor sinds stap 1 naar luistert.
-                    #
-                    # De baudrate gaat bewust als laatste: die verbreekt de
-                    # verbinding tot de gateway op dezelfde snelheid staat.
+                    # Step 2, at the NEW address. A unit is tied to the
+                    # address it was requested for, so we request a fresh one
+                    # at the address the sensor has been listening on since
+                    # step 1. The baud rate deliberately goes last since it
+                    # breaks the connection until the gateway matches speed.
                     if baudrate_changed:
                         async with temporary_unit(
                             self.hass, current_params, device_id

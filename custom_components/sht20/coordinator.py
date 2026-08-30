@@ -9,7 +9,7 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 _LOGGER = logging.getLogger(__name__)
 
 class RealtimeCoordinator(DataUpdateCoordinator):
-    """Coordinator for the realtime temperture en humidity readings."""
+    """Coordinator for the realtime temperature and humidity readings."""
 
     def __init__(self, hass, name, hub, scan_interval, connection_monitor=None):
         super().__init__(
