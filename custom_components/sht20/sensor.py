@@ -206,7 +206,7 @@ class Sht20ConnectionMethodSensor(CoordinatorEntity, SensorEntity):
         super().__init__(coordinator)
         name = entry.data[CONF_NAME]
 
-        self._attr_name = f"{name} Verbindingsmethode"
+        self._attr_name = f"{name} Connection method"
         self._attr_unique_id = f"{entry.entry_id}_connection_method"
         self._attr_device_info = _device_info(entry, name)
 
@@ -219,6 +219,6 @@ class Sht20ConnectionMethodSensor(CoordinatorEntity, SensorEntity):
         # Include the HA version so a screenshot shows at a glance why this
         # method was chosen.
         return {
-            "gedeelde_verbinding_beschikbaar": HAS_SHARED_CONNECTION,
-            "home_assistant_versie": HA_VERSION,
+            "shared_connection_available": HAS_SHARED_CONNECTION,
+            "home_assistant_version": HA_VERSION,
         }

@@ -53,8 +53,8 @@ except ImportError:  # Home Assistant older than 2026.9
 
 # Labels for the diagnostic sensor that shows which of the two connection
 # methods above is active.
-METHOD_SHARED = "gedeeld (HA modbus)"
-METHOD_OWN = "eigen verbinding"
+METHOD_SHARED = "shared (HA modbus)"
+METHOD_OWN = "own connection"
 
 
 def active_method() -> str:
