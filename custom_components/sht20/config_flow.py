@@ -28,6 +28,8 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     CONF_TEMP_OFFSET,
     CONF_HUM_OFFSET,
+    DEFAULT_TEMP_OFFSET,
+    DEFAULT_HUM_OFFSET,
     CONF_MULTIPLIER,
     DEFAULT_MULTIPLIER,
     CONF_PRESSURE,
@@ -208,176 +210,96 @@ class Sht20ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def _create_entry(self) -> FlowResult:
-        # A temporary unit lets us read the sensor's settings during setup.
-        # On HA 2026.9+ this piggybacks on a connection already open to the
-        # same gateway instead of opening a second socket next to it, which
-        # matters for bridges like the Elfin EW-11 that cannot handle a
-        # second connection.
-        from .connection import build_params, temporary_unit
-        from .hub import ShtModbusHub
-
-        properties = {}
-        unit_id = self._data[CONF_DEVICE_ID]
-
-        try:
-            async with temporary_unit(
-                self.hass, build_params(self._data), unit_id
-            ) as unit:
-                hub = ShtModbusHub(self._data[CONF_NAME], unit, unit_id)
-                properties = await hub.read_settings()
-        except Exception as e:
-            _LOGGER.warning(f"Could not retrieve settings during installation.: {e}")
-
         _LOGGER.debug(f"SHT20 hub config: {self._data}")
 
         return self.async_create_entry(
             title=self._data[CONF_NAME],
             data=self._data,
-            options=properties
+            options={},
         )
 
 class Sht20OptionsFlowHandler(OptionsFlow):
     def __init__(self, config_entry):
         self._data = dict(config_entry.data)
 
-    def _sensor_settings(self):
-        """Return the settings as last read from the sensor, empty when unknown."""
-        entry_data = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
-        if entry_data:
-            coordinator = entry_data.get("settings")
-            if coordinator and coordinator.data:
-                return coordinator.data
-        return {}
-
     async def async_step_init(self, user_input=None):
-        errors = {}
-
         mode = self.config_entry.data.get(CONF_MODE)
         options = self.config_entry.options
 
-        if user_input is None:
-            # Refresh first, so the form shows what the sensor currently holds
-            entry_data = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
-            if entry_data and entry_data.get("settings"):
-                await entry_data["settings"].async_refresh()
+        current_device_id = self.config_entry.data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID)
+        current_scan_interval = self.config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        current_temp_offset = self.config_entry.options.get(CONF_TEMP_OFFSET, DEFAULT_TEMP_OFFSET)
+        current_hum_offset  = self.config_entry.options.get(CONF_HUM_OFFSET, DEFAULT_HUM_OFFSET)
 
-        settings = self._sensor_settings()
-
-        current_device_id   = settings.get("device_id") or self.config_entry.data.get(CONF_DEVICE_ID, DEFAULT_DEVICE_ID)
-        current_temp_offset = settings.get("temp_offset", self.config_entry.options.get(CONF_TEMP_OFFSET, 0))
-        current_hum_offset  = settings.get("hum_offset", self.config_entry.options.get(CONF_HUM_OFFSET, 0))
-
-        # What the sensor reported wins, but only when it is a known baud rate
-        current_baudrate = settings.get(CONF_BAUDRATE)
+        current_baudrate = self.config_entry.data.get(CONF_BAUDRATE, DEFAULT_BAUDRATE)
         if current_baudrate not in ALLOWED_BAUDRATES:
-            current_baudrate = self.config_entry.options.get(CONF_BAUDRATE)
-        if current_baudrate not in ALLOWED_BAUDRATES:
-            current_baudrate = self.config_entry.data.get(CONF_BAUDRATE, DEFAULT_BAUDRATE)
+            current_baudrate = DEFAULT_BAUDRATE
 
         if user_input is not None:
-            from .connection import build_params, temporary_unit
-            from .hub import ShtModbusHub
-
             # The selectors hand back a float and a string
-            device_id   = int(user_input.get(CONF_DEVICE_ID, current_device_id))
-            baudrate    = int(user_input.get(CONF_BAUDRATE, current_baudrate))
-            temp_offset = user_input.get(CONF_TEMP_OFFSET, 0)
-            hum_offset  = user_input.get(CONF_HUM_OFFSET, 0)
+            device_id = int(user_input.get(CONF_DEVICE_ID, current_device_id))
+            baudrate  = int(user_input.get(CONF_BAUDRATE, current_baudrate))
+            scan_interval = int(user_input.get(CONF_SCAN_INTERVAL, current_scan_interval))
 
             # Store the normalised values instead of what the selectors returned
             user_input = {
                 **user_input,
                 CONF_DEVICE_ID: device_id,
                 CONF_BAUDRATE: baudrate,
+                CONF_SCAN_INTERVAL: scan_interval,
                 CONF_NOTIFY_CONNECTION_ERRORS_SERVICES: _normalize_services(
                     user_input.get(CONF_NOTIFY_CONNECTION_ERRORS_SERVICES)
                 ),
             }
 
-            offsets_changed   = (temp_offset, hum_offset) != (current_temp_offset, current_hum_offset)
-            device_id_changed = device_id != current_device_id
-            baudrate_changed  = baudrate != current_baudrate
+            # device_id/baudrate/scan_interval are connection parameters, not
+            # sensor state - this never writes to the sensor. Changing the
+            # sensor's own address or baud rate (so it matches what is
+            # entered here) is done outside Home Assistant.
+            updated_data = {
+                **self.config_entry.data,
+                CONF_DEVICE_ID: device_id,
+                CONF_BAUDRATE: baudrate,
+                CONF_SCAN_INTERVAL: scan_interval,
+            }
 
-            # Only talk to the sensor when something it stores actually changed
-            if offsets_changed or device_id_changed or baudrate_changed:
-                # The connection settings as they are RIGHT NOW. For rtu that
-                # includes the current baud rate, since that determines how
-                # the sensor can be reached at this moment.
-                name = self.config_entry.data[CONF_NAME]
-                current_params = build_params(
-                    {**self.config_entry.data, CONF_BAUDRATE: current_baudrate}
-                )
+            self.hass.config_entries.async_update_entry(
+                self.config_entry,
+                data=updated_data,
+            )
 
-                try:
-                    # Step 1, at the CURRENT address. Offsets first since
-                    # they do not affect reachability, then the device ID,
-                    # which moves the sensor to a new address.
-                    async with temporary_unit(
-                        self.hass, current_params, current_device_id
-                    ) as unit:
-                        hub = ShtModbusHub(name, unit, current_device_id)
+            return self.async_create_entry(title="", data=user_input)
 
-                        if offsets_changed:
-                            await hub.write_correction_settings(
-                                temp_offset=temp_offset, hum_offset=hum_offset
-                            )
+        schema_fields = {
+            vol.Required(CONF_DEVICE_ID, default=current_device_id): DEVICE_ID_SELECTOR,
+        }
+        if mode == "rtu":
+            # Baud rate only matters for a direct serial connection; a
+            # TCP/UDP gateway's own baud rate towards the sensor is not
+            # something Home Assistant talks to.
+            schema_fields[vol.Required(CONF_BAUDRATE, default=str(current_baudrate))] = BAUDRATE_SELECTOR
+        schema_fields.update({
+            vol.Optional(CONF_SCAN_INTERVAL, default=current_scan_interval): vol.All(vol.Coerce(int), vol.Range(min=1, max=3600)),
+            vol.Optional(CONF_TEMP_OFFSET, default=current_temp_offset): vol.Coerce(float),
+            vol.Optional(CONF_HUM_OFFSET, default=current_hum_offset): vol.Coerce(float),
+            vol.Optional(CONF_MULTIPLIER, default=self.config_entry.options.get(CONF_MULTIPLIER, DEFAULT_MULTIPLIER)): vol.Coerce(float),
+            vol.Optional(CONF_PRESSURE, default=self.config_entry.options.get(CONF_PRESSURE, DEFAULT_PRESSURE)): vol.Coerce(float),
 
-                        if device_id_changed:
-                            await hub.write_device_id(device_id)
+            # Connection error notifications
+            vol.Optional(CONF_NOTIFY_CONNECTION_ERRORS_PERSISTENT, default=options.get(CONF_NOTIFY_CONNECTION_ERRORS_PERSISTENT, DEFAULT_NOTIFY_CONNECTION_ERRORS_PERSISTENT)): bool,
+            vol.Optional(CONF_NOTIFY_CONNECTION_ERRORS_MOBILE, default=options.get(CONF_NOTIFY_CONNECTION_ERRORS_MOBILE, DEFAULT_NOTIFY_CONNECTION_ERRORS_MOBILE)): bool,
+            vol.Optional(CONF_NOTIFY_CONNECTION_ERRORS_SERVICES, default=_services_default(options.get(CONF_NOTIFY_CONNECTION_ERRORS_SERVICES, DEFAULT_NOTIFY_CONNECTION_ERRORS_SERVICES))): _notify_services_selector(self.hass),
+            vol.Optional(CONF_CONNECTION_ERROR_NOTIFICATION_TITLE, default=options.get(CONF_CONNECTION_ERROR_NOTIFICATION_TITLE, DEFAULT_CONNECTION_ERROR_NOTIFICATION_TITLE)): str,
+            vol.Optional(CONF_CONNECTION_ERROR_DELAY, default=options.get(CONF_CONNECTION_ERROR_DELAY, DEFAULT_CONNECTION_ERROR_DELAY)): vol.All(vol.Coerce(int), vol.Range(min=0)),
+            vol.Optional(CONF_NOTIFY_RECOVERY, default=options.get(CONF_NOTIFY_RECOVERY, DEFAULT_NOTIFY_RECOVERY)): bool,
 
-                    # Step 2, at the NEW address. A unit is tied to the
-                    # address it was requested for, so we request a fresh one
-                    # at the address the sensor has been listening on since
-                    # step 1. The baud rate deliberately goes last since it
-                    # breaks the connection until the gateway matches speed.
-                    if baudrate_changed:
-                        async with temporary_unit(
-                            self.hass, current_params, device_id
-                        ) as unit:
-                            hub = ShtModbusHub(name, unit, device_id)
-                            await hub.write_baudrate(baudrate)
-
-                except Exception as e:
-                    _LOGGER.warning(f"Could not write settings to sensor: {e}")
-                    errors["base"] = "write_failed"
-
-            if not errors:
-                # Only update relevant data in the config entry
-                updated_data = {
-                    **self.config_entry.data,
-                    CONF_DEVICE_ID: device_id,
-                    CONF_BAUDRATE: baudrate,
-                }
-
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry,
-                    data=updated_data,
-                )
-
-                return self.async_create_entry(title="", data=user_input)
+            # Quiet hours
+            vol.Optional(CONF_QUIET_HOURS_ENABLED, default=options.get(CONF_QUIET_HOURS_ENABLED, DEFAULT_QUIET_HOURS_ENABLED)): bool,
+            vol.Optional(CONF_QUIET_HOURS_START, default=options.get(CONF_QUIET_HOURS_START, DEFAULT_QUIET_HOURS_START)): selector.TimeSelector(),
+            vol.Optional(CONF_QUIET_HOURS_END, default=options.get(CONF_QUIET_HOURS_END, DEFAULT_QUIET_HOURS_END)): selector.TimeSelector(),
+        })
 
         return self.async_show_form(
             step_id="init",
-            errors=errors,
-            data_schema=vol.Schema({
-                vol.Required(CONF_DEVICE_ID, default=current_device_id): DEVICE_ID_SELECTOR,
-                vol.Required(CONF_BAUDRATE, default=str(current_baudrate)): BAUDRATE_SELECTOR,
-                vol.Optional(CONF_TEMP_OFFSET, default=current_temp_offset): vol.Coerce(float),
-                vol.Optional(CONF_HUM_OFFSET, default=current_hum_offset): vol.Coerce(float),
-                vol.Optional(CONF_MULTIPLIER, default=self.config_entry.options.get(CONF_MULTIPLIER, DEFAULT_MULTIPLIER)): vol.Coerce(float),
-                vol.Optional(CONF_PRESSURE, default=self.config_entry.options.get(CONF_PRESSURE, DEFAULT_PRESSURE)): vol.Coerce(float),
-
-                # Connection error notifications
-                vol.Optional(CONF_NOTIFY_CONNECTION_ERRORS_PERSISTENT, default=options.get(CONF_NOTIFY_CONNECTION_ERRORS_PERSISTENT, DEFAULT_NOTIFY_CONNECTION_ERRORS_PERSISTENT)): bool,
-                vol.Optional(CONF_NOTIFY_CONNECTION_ERRORS_MOBILE, default=options.get(CONF_NOTIFY_CONNECTION_ERRORS_MOBILE, DEFAULT_NOTIFY_CONNECTION_ERRORS_MOBILE)): bool,
-                vol.Optional(CONF_NOTIFY_CONNECTION_ERRORS_SERVICES, default=_services_default(options.get(CONF_NOTIFY_CONNECTION_ERRORS_SERVICES, DEFAULT_NOTIFY_CONNECTION_ERRORS_SERVICES))): _notify_services_selector(self.hass),
-                vol.Optional(CONF_CONNECTION_ERROR_NOTIFICATION_TITLE, default=options.get(CONF_CONNECTION_ERROR_NOTIFICATION_TITLE, DEFAULT_CONNECTION_ERROR_NOTIFICATION_TITLE)): str,
-                vol.Optional(CONF_CONNECTION_ERROR_DELAY, default=options.get(CONF_CONNECTION_ERROR_DELAY, DEFAULT_CONNECTION_ERROR_DELAY)): vol.All(vol.Coerce(int), vol.Range(min=0)),
-                vol.Optional(CONF_NOTIFY_RECOVERY, default=options.get(CONF_NOTIFY_RECOVERY, DEFAULT_NOTIFY_RECOVERY)): bool,
-
-                # Quiet hours
-                vol.Optional(CONF_QUIET_HOURS_ENABLED, default=options.get(CONF_QUIET_HOURS_ENABLED, DEFAULT_QUIET_HOURS_ENABLED)): bool,
-                vol.Optional(CONF_QUIET_HOURS_START, default=options.get(CONF_QUIET_HOURS_START, DEFAULT_QUIET_HOURS_START)): selector.TimeSelector(),
-                vol.Optional(CONF_QUIET_HOURS_END, default=options.get(CONF_QUIET_HOURS_END, DEFAULT_QUIET_HOURS_END)): selector.TimeSelector(),
-            })
-    )
+            data_schema=vol.Schema(schema_fields),
+        )

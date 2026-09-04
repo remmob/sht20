@@ -21,7 +21,7 @@ Deze sensoren zijn te koop via **AliExpress** en, in Nederland, via de **Domotic
 [domoticx.net – XY-MD01 / SHT20](https://domoticx.net/webshop/modbus-rs485-rtu-temphum-sensor-9-36vdc-xy-md01-sht20/)
 (*Ken je een andere shop? Laat het weten in de discussions.*)
 
-Instellen en bijregelen gaat volledig via Home Assistant's `config_flow`, inclusief kalibratie die rechtstreeks naar de sensor wordt geschreven.
+Instellen en bijregelen gaat volledig via Home Assistant's `config_flow`, inclusief temperatuur- en vochtigheidscorrectie die Home Assistant zelf toepast.
 
 ---
 
@@ -32,7 +32,7 @@ Instellen en bijregelen gaat volledig via Home Assistant's `config_flow`, inclus
 - **Vier berekende comfort-sensoren** — dauwpunt, absolute luchtvochtigheid, enthalpie en gevoelstemperatuur, afgeleid uit de live metingen.
 - **Verbindingsbewaking** — krijg een melding als de sensor niet meer reageert, met een automatisch herstelbericht zodra hij terug is.
 - **Stille uren** — houd mobiele meldingen tegen tijdens een ingestelde periode (bijv. 's nachts) en lever ze daarna alsnog af.
-- **Kalibratie op de sensor** — temperatuur- en vochtigheidsoffsets en het apparaat-ID/de baudrate worden rechtstreeks naar de sensor geschreven.
+- **Temperatuur- en vochtigheidscorrectie** — wordt door Home Assistant zelf toegepast, dus werkt ook betrouwbaar op sensor-batches die een negatieve correctie niet goed opslaan.
 - **Altijd herconfigureerbaar** — pas alles later aan via het options-scherm; de integratie hoeft niet verwijderd en opnieuw toegevoegd te worden.
 - **Meerdere sensoren**, elk met eigen instellingen.
 - **Nederlandse en Engelse** vertaling van de UI.
@@ -120,7 +120,7 @@ Na installatie ga je naar **Instellingen → Apparaten & diensten → Integratie
 - Stel het **scan-interval** in (standaard = 10 seconden).
 - Klik op **Verzenden**.
 
-Na het verzenden neemt de integratie contact op met de sensor en leest de huidige instellingen terug, die je daarna kunt bijstellen via het ⚙️-tandwiel.
+Na het verzenden kun je correcties en meldingen verder bijstellen via het ⚙️-tandwiel.
 
 ---
 
@@ -135,13 +135,14 @@ Klik op het tandwiel bij de SHT20-integratie om de opties te openen.
 
 **Beschikbare opties**
 
-- **Apparaat-ID** en **baudrate** — worden naar de sensor geschreven; het formulier is vooraf ingevuld met de waarden die de sensor op dat moment rapporteert.
-- **Temperatuuroffset** (−10,0 … +10,0 °C) en **vochtigheidsoffset** (−10,0 … +10,0 %).
+- **Apparaat-ID** en **baudrate** — alleen verbindingsgegevens om de sensor te bereiken; worden nooit naar de sensor geschreven. Heb je het adres of de baudrate van de sensor zelf gewijzigd (buiten Home Assistant om), pas ze hier aan zodat de integratie weer kan verbinden. Baudrate verschijnt alleen bij een seriële (RTU) verbinding.
+- **Uitleesinterval** — nu ook achteraf aan te passen. Verhoog dit als de sensor een gateway deelt met andere Modbus-apparaten.
+- **Temperatuuroffset** en **vochtigheidsoffset** — worden in Home Assistant bij de gemeten waarde opgeteld, niet naar de sensor geschreven.
 - **Luchtdruk** (hPa) — gebruikt door de berekende sensoren.
 - **Multiplier** — schaling voor de ruwe waarden. Standaard **0.01** (de sensor rapporteert honderdsten, bijv. `2572` → `25,72`). Zet op **1** als er geen schaling nodig is.
 - **Meldingen bij verbindingsfouten** — zie hieronder.
 
-De integratie schrijft alleen naar de sensor wanneer een waarde die op het apparaat staat daadwerkelijk is gewijzigd, en herlaadt automatisch zodat nieuwe instellingen meteen actief zijn.
+De integratie herlaadt automatisch zodat nieuwe instellingen meteen actief zijn.
 
 ---
 

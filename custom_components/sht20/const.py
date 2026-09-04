@@ -38,8 +38,9 @@ DEFAULT_SCAN_INTERVAL = 10
 
 # The sensor stores the baud rate as a code in its settings register
 BAUDRATE_CODES = {0: 9600, 1: 14400, 2: 19200}
-BAUDRATE_VALUES = {baudrate: code for code, baudrate in BAUDRATE_CODES.items()}
 DEFAULT_MULTIPLIER = 0.01     # The sensor reports hundredths (2572 -> 25.72)
+DEFAULT_TEMP_OFFSET = 0.0     # Applied in Home Assistant, not written to the sensor
+DEFAULT_HUM_OFFSET = 0.0      # Applied in Home Assistant, not written to the sensor
 
 # Number of decimals shown for every sensor
 DISPLAY_PRECISION = 2
@@ -73,6 +74,22 @@ RETRY_DELAY_SECONDS = 1
 # but the device behind it has stopped responding, so automatic reconnection
 # has nothing to reconnect. See _consecutive_timeouts handling in hub.py.
 STUCK_LINK_TIMEOUTS = 3
+
+# Bus corruption (e.g. this sensor's input-register reads getting interleaved
+# with another device's holding-register reads on a shared Modbus gateway)
+# decodes into a valid-looking but wrong int16 - no exception is raised, so
+# MAX_READ_RETRIES above never sees it. A jump bigger than these limits
+# between consecutive polls is treated as a bad read instead. Raw register
+# units (hundredths), same scale as Sht20Readings in device.py.
+MAX_TEMPERATURE_STEP = 200   # 2.00 degrees
+MAX_HUMIDITY_STEP = 500      # 5.00 %RH
+
+# If every poll looks implausible for this many cycles in a row, the last
+# known good value is probably the stale one (e.g. after a real step change
+# such as a heater switching on next to the sensor) - accept the new reading
+# as the baseline instead of freezing forever. See _implausible_streak in
+# hub.py.
+MAX_IMPLAUSIBLE_POLLS = 3
 DEFAULT_PRESSURE = 1013.25      # Standard atmosphere at sea level
 
 # Units for the calculated sensors

@@ -9,5 +9,5 @@
     "issue_tracker": "https://github.com/remmob/sht20/issues",
     "loggers": ["modbus_connection", "tmodbus"],
     "requirements": ["modbus-connection[tmodbus]>=4.10.0,<5"],
-    "version": "1.2.0-beta3"
+    "version": "1.2.0-beta4"
 }

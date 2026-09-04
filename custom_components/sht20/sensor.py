@@ -20,8 +20,12 @@ from .const import (
     CONF_NAME,
     CONF_MULTIPLIER,
     CONF_PRESSURE,
+    CONF_TEMP_OFFSET,
+    CONF_HUM_OFFSET,
     DEFAULT_MULTIPLIER,
     DEFAULT_PRESSURE,
+    DEFAULT_TEMP_OFFSET,
+    DEFAULT_HUM_OFFSET,
     DISPLAY_PRECISION,
     ABSOLUTE_HUMIDITY_PRECISION,
     UNIT_ABSOLUTE_HUMIDITY,
@@ -31,8 +35,15 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-# The temperature and humidity corrections are written to the sensor itself,
-# so the values read back are already corrected.
+# The temperature and humidity corrections are applied here, not written to
+# the sensor: this hardware does not reliably store a negative correction in
+# its own registers (the sign byte gets dropped on at least the humidity
+# register), so the offset is added in Home Assistant instead, after scaling
+# by the multiplier - the same units the user enters it in.
+_OFFSET_CONF = {
+    "temperature": (CONF_TEMP_OFFSET, DEFAULT_TEMP_OFFSET),
+    "humidity": (CONF_HUM_OFFSET, DEFAULT_HUM_OFFSET),
+}
 SENSOR_TYPES = {
     "temperature": {
         "name": "Temperature",
@@ -89,12 +100,19 @@ def _device_info(entry, name):
 
 
 def _scaled_value(coordinator, entry, key):
-    """Return a raw register value scaled with the configured multiplier."""
+    """Return a raw register value scaled with the multiplier, offset applied."""
     value = coordinator.data.get(key) if coordinator.data else None
     if value is None:
         return None
 
-    return value * entry.options.get(CONF_MULTIPLIER, DEFAULT_MULTIPLIER)
+    value = value * entry.options.get(CONF_MULTIPLIER, DEFAULT_MULTIPLIER)
+
+    offset_conf = _OFFSET_CONF.get(key)
+    if offset_conf is not None:
+        conf_key, default = offset_conf
+        value += entry.options.get(conf_key, default)
+
+    return value
 
 
 async def async_setup_entry(hass, entry, async_add_entities):

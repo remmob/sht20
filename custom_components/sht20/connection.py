@@ -8,8 +8,7 @@ concern — it is either handed off to Home Assistant's shared modbus connection
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Mapping
-from contextlib import asynccontextmanager
+from collections.abc import Mapping
 from typing import Any
 
 from modbus_connection import (
@@ -39,14 +38,10 @@ from .const import (
 # Remove this fallback (and raise the floor in hacs.json) around September
 # 2027, one year after 2026.9.
 try:
-    from homeassistant.components.modbus import (
-        async_get_temporary_unit,
-        async_get_unit,
-    )
+    from homeassistant.components.modbus import async_get_unit
 
     HAS_SHARED_CONNECTION = True
 except ImportError:  # Home Assistant older than 2026.9
-    async_get_temporary_unit = None
     async_get_unit = None
     HAS_SHARED_CONNECTION = False
 
@@ -116,31 +111,3 @@ def async_setup_unit(
     connection = ModbusConnection(params)
     entry.async_on_unload(connection.close)
     return connection.for_unit(unit_id)
-
-
-@asynccontextmanager
-async def temporary_unit(
-    hass: HomeAssistant,
-    params: ModbusTcpParams | ModbusUdpParams | ModbusSerialParams,
-    unit_id: int,
-) -> AsyncIterator[ModbusUnit]:
-    """Return a unit for the duration of a config flow.
-
-    The config flow talks to the sensor before a config entry exists to hang
-    a connection off (during setup), or while one is already running (when
-    changing settings). On 2026.9+, `async_get_temporary_unit` piggybacks on
-    an existing connection to the same device instead of opening a second
-    socket next to it — important for bridges like the Elfin EW-11, which
-    cannot handle a second connection. Only a connection opened here is
-    closed again on exit.
-    """
-    if async_get_temporary_unit is not None:
-        async with async_get_temporary_unit(hass, params, unit_id) as unit:
-            yield unit
-        return
-
-    connection = ModbusConnection(params)
-    try:
-        yield connection.for_unit(unit_id)
-    finally:
-        await connection.close()

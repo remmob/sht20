@@ -1,6 +1,5 @@
 """Initialize the SHT20 Modbus integration."""
 
-import asyncio
 import logging
 
 from homeassistant.core import HomeAssistant
@@ -18,7 +17,7 @@ from .const import (
 )
 from .connection import active_method, async_setup_unit, build_params
 from .hub import ShtModbusHub
-from .coordinator import RealtimeCoordinator, SettingsCoordinator
+from .coordinator import RealtimeCoordinator
 from .connection_monitor import ConnectionMonitor
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,18 +48,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     realtime_coordinator = RealtimeCoordinator(
         hass, name, hub, scan_interval, connection_monitor
     )
-    settings_coordinator = SettingsCoordinator(hass, name, hub)
 
     await realtime_coordinator.async_config_entry_first_refresh()
-    await asyncio.sleep(1)
-    await settings_coordinator.async_refresh()
 
     _register_device(hass, entry, name)
 
     hass.data[DOMAIN][entry.entry_id] = {
         "hub": hub,
         "realtime": realtime_coordinator,
-        "settings": settings_coordinator,
         "connection_monitor": connection_monitor,
     }
 

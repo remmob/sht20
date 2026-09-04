@@ -1,4 +1,4 @@
-"""Reads and writes the SHT20 over a Modbus unit.
+"""Reads the SHT20 over a Modbus unit.
 
 Two things worth knowing that are not obvious from the code:
 
@@ -17,6 +17,23 @@ the device behind it stops responding; the socket looks healthy so nothing
 triggers a reconnect, and every read just times out on the same dead link.
 `_consecutive_timeouts` in `read_realtime_data` detects that pattern and
 forces a disconnect so the next poll opens a fresh connection.
+
+Plausibility check: when this sensor shares a Modbus gateway with another
+device polled via a different register space (e.g. a holding-register device
+on the same RS485 bus), a read can come back corrupted without raising any
+exception - it just decodes into a valid-looking but wrong int16. That shows
+up as the value jumping around from poll to poll. `_is_plausible` rejects a
+jump bigger than MAX_TEMPERATURE_STEP/MAX_HUMIDITY_STEP and retries within
+the same poll; `_implausible_streak` stops that from freezing the sensor
+forever if a jump that size ever turns out to be real.
+
+Device ID and baud rate are connection parameters only (config entry data),
+never read from or written to the sensor: this hardware does not reliably
+apply a write to its own settings registers (confirmed while debugging the
+temperature/humidity correction, which is why those moved to sensor.py
+instead). Changing the sensor's own address or baud rate is done outside
+Home Assistant; the integration only needs to be told the current values so
+it can connect.
 """
 
 from __future__ import annotations
@@ -27,13 +44,14 @@ import logging
 from modbus_connection import ModbusError, ModbusTimeoutError, ModbusUnit
 
 from .const import (
-    BAUDRATE_CODES,
-    BAUDRATE_VALUES,
+    MAX_HUMIDITY_STEP,
+    MAX_IMPLAUSIBLE_POLLS,
     MAX_READ_RETRIES,
+    MAX_TEMPERATURE_STEP,
     RETRY_DELAY_SECONDS,
     STUCK_LINK_TIMEOUTS,
 )
-from .device import Sht20Device
+from .device import Sht20Readings
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,17 +61,22 @@ class ShtModbusHub:
 
     def __init__(self, name: str, unit: ModbusUnit, unit_id: int) -> None:
         self.name = name
-        # Kept only to know which address we are talking to, for logging and
-        # when changing the device ID.
+        # Kept only for logging - which address we are talking to.
         self.unit_id = unit_id
         self._unit = unit
-        self._device = Sht20Device(unit)
+        self._readings = Sht20Readings(unit)
         # Number of consecutive polls that ended in a timeout. See
         # read_realtime_data() for where this resets and what happens when
         # the counter fills up.
         self._consecutive_timeouts = 0
-
-    # ------------------------------------------------------------------ read
+        # Last known good raw readings, used by _is_plausible() to reject a
+        # corrupted decode. None until the first successful read.
+        self._last_temperature: int | None = None
+        self._last_humidity: int | None = None
+        # Number of consecutive polls where no attempt looked plausible. See
+        # read_realtime_data() for where this resets and what happens when
+        # the counter fills up.
+        self._implausible_streak = 0
 
     async def _update_with_retry(self, component, what: str) -> None:
         """Update a component, retrying timeouts since the library does not."""
@@ -78,121 +101,88 @@ class ShtModbusHub:
         )
         raise last_error
 
+    def _is_plausible(self, temperature: int, humidity: int) -> bool:
+        """Reject a jump too large to be real between consecutive polls.
+
+        Nothing to compare against on the very first read, so that one is
+        always accepted.
+        """
+        if self._last_temperature is None or self._last_humidity is None:
+            return True
+        return (
+            abs(temperature - self._last_temperature) <= MAX_TEMPERATURE_STEP
+            and abs(humidity - self._last_humidity) <= MAX_HUMIDITY_STEP
+        )
+
     async def read_realtime_data(self) -> dict:
         """Read temperature and humidity as raw register values.
 
         The dict keys are relied on by sensor.py to build its entities;
         renaming them would give every sensor a new entity ID.
         """
-        # The stuck-link counter is deliberately only incremented here and
-        # not in read_settings(): count on a single coordinator, the one
-        # with the fastest interval, otherwise a second coordinator could
-        # cut off a poll that is already in flight. Settings are only read
-        # on demand, readings on every scan_interval.
-        try:
-            await self._update_with_retry(self._device.readings, "readings")
-        except ModbusTimeoutError:
-            # Only timeouts count. A ModbusConnectionError means the library
-            # already noticed the dropped connection itself and will recover
-            # on the next poll without help.
-            self._consecutive_timeouts += 1
-            if self._consecutive_timeouts >= STUCK_LINK_TIMEOUTS:
+        temperature = humidity = None
+
+        for attempt in range(MAX_READ_RETRIES):
+            try:
+                await self._update_with_retry(self._readings, "readings")
+            except ModbusTimeoutError:
+                # Only timeouts count. A ModbusConnectionError means the
+                # library already noticed the dropped connection itself and
+                # will recover on the next poll without help.
+                self._consecutive_timeouts += 1
+                if self._consecutive_timeouts >= STUCK_LINK_TIMEOUTS:
+                    _LOGGER.warning(
+                        "%s consecutive polls timed out; the connection "
+                        "appears stuck. Disconnecting so the next poll opens "
+                        "a fresh connection.",
+                        self._consecutive_timeouts,
+                    )
+                    await self._unit.disconnect()
+                    # Reset to zero, otherwise every following poll would
+                    # disconnect again and a fresh connection would never get
+                    # a chance to prove itself.
+                    self._consecutive_timeouts = 0
+                raise
+
+            self._consecutive_timeouts = 0
+            temperature = self._readings.temperature
+            humidity = self._readings.humidity
+
+            if self._is_plausible(temperature, humidity):
+                self._implausible_streak = 0
+                break
+
+            _LOGGER.warning(
+                "%s: implausible reading temperature=%s humidity=%s (last "
+                "temperature=%s humidity=%s) - likely bus corruption from "
+                "shared Modbus traffic; retrying (attempt %s/%s)",
+                self.name, temperature, humidity,
+                self._last_temperature, self._last_humidity,
+                attempt + 1, MAX_READ_RETRIES,
+            )
+            if attempt < MAX_READ_RETRIES - 1:
+                await asyncio.sleep(RETRY_DELAY_SECONDS)
+        else:
+            self._implausible_streak += 1
+            if self._implausible_streak >= MAX_IMPLAUSIBLE_POLLS:
                 _LOGGER.warning(
-                    "%s consecutive polls timed out; the connection appears "
-                    "stuck. Disconnecting so the next poll opens a fresh "
-                    "connection.",
-                    self._consecutive_timeouts,
+                    "%s: %s consecutive polls without a plausible reading; "
+                    "accepting the last one as the new baseline in case it "
+                    "is a real change.",
+                    self.name, self._implausible_streak,
                 )
-                await self._unit.disconnect()
-                # Reset to zero, otherwise every following poll would
-                # disconnect again and a fresh connection would never get a
-                # chance to prove itself.
-                self._consecutive_timeouts = 0
-            raise
+                self._implausible_streak = 0
+            else:
+                _LOGGER.warning(
+                    "%s: no plausible reading after %s attempts; keeping "
+                    "last known good value (temperature=%s humidity=%s).",
+                    self.name, MAX_READ_RETRIES,
+                    self._last_temperature, self._last_humidity,
+                )
+                temperature = self._last_temperature
+                humidity = self._last_humidity
 
-        self._consecutive_timeouts = 0
+        self._last_temperature = temperature
+        self._last_humidity = humidity
 
-        return {
-            "temperature": self._device.readings.temperature,
-            "humidity": self._device.readings.humidity,
-        }
-
-    async def read_settings(self) -> dict:
-        """Read the four settings stored in the sensor itself."""
-        await self._update_with_retry(self._device.settings, "settings")
-        settings = self._device.settings
-
-        return {
-            "device_id": settings.device_id,
-            "baudrate": self._decode_baudrate(settings.baudrate_raw),
-            "temp_offset": settings.temp_offset,
-            "hum_offset": settings.hum_offset,
-        }
-
-    # -------------------------------------------------------------- write
-
-    async def write_correction_settings(
-        self, temp_offset: float, hum_offset: float
-    ) -> None:
-        """Write the two correction values to the sensor."""
-        await self._device.settings.write("temp_offset", temp_offset)
-        await self._device.settings.write("hum_offset", hum_offset)
-
-    async def write_device_id(self, device_id: int) -> None:
-        """Write a new Modbus address to the sensor.
-
-        This is the most sensitive operation in the integration: after this
-        write, the sensor listens on a different address, and this hub's
-        unit still points at the old one. Anything that still needs to talk
-        to the sensor must request a new unit at the new address — the
-        caller in config_flow.py does this after calling write_device_id().
-        This is why it is split from write_baudrate().
-        """
-        _LOGGER.debug("Writing new device ID %s (was %s)", device_id, self.unit_id)
-        await self._device.settings.write("device_id", device_id)
-
-    async def write_baudrate(self, baudrate: int) -> None:
-        """Write a new baud rate to the sensor.
-
-        This breaks the connection until the gateway is set to the same
-        speed, so it must always happen last.
-        """
-        if baudrate not in BAUDRATE_VALUES:
-            raise ValueError(f"Unsupported baudrate: {baudrate}")
-
-        await self._device.settings.write(
-            "baudrate_raw", await self._encode_baudrate(baudrate)
-        )
-
-    # ---------------------------------------------------- baudrate translation
-
-    @staticmethod
-    def _decode_baudrate(raw: int | None) -> int | None:
-        """Convert the raw register value to a baud rate.
-
-        Some sensors store 9600 directly, others store the code 0. A known
-        baud rate wins if present; otherwise the value is read as a code.
-        """
-        if raw is None:
-            return None
-        if raw in BAUDRATE_VALUES:
-            return raw
-
-        baudrate = BAUDRATE_CODES.get(raw)
-        if baudrate is None:
-            _LOGGER.warning("Unknown baudrate in the settings register: %s", raw)
-        return baudrate
-
-    async def _encode_baudrate(self, baudrate: int) -> int:
-        """Work out what to write to the register, in this device's format.
-
-        We first read what is currently stored to see which of the two
-        formats this sensor uses, then write back in that same format.
-        """
-        await self._device.settings.async_update()
-        current = self._device.settings.baudrate_raw
-
-        if current in BAUDRATE_CODES:
-            # This sensor stores a code instead of the baud rate itself
-            return BAUDRATE_VALUES[baudrate]
-        return baudrate
+        return {"temperature": temperature, "humidity": humidity}

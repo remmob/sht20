@@ -21,7 +21,7 @@ These sensors are available via **AliExpress** and, in the Netherlands, via the 
 [domoticx.net – XY-MD01 / SHT20](https://domoticx.net/webshop/modbus-rs485-rtu-temphum-sensor-9-36vdc-xy-md01-sht20/)
 (*Know another shop? Drop a line in the discussions.*)
 
-Setup and tuning are fully UI-driven through Home Assistant's `config_flow`, including calibration written straight to the sensor.
+Setup and tuning are fully UI-driven through Home Assistant's `config_flow`, including temperature and humidity correction applied by Home Assistant itself.
 
 ---
 
@@ -32,7 +32,7 @@ Setup and tuning are fully UI-driven through Home Assistant's `config_flow`, inc
 - **Four calculated comfort sensors** — dew point, absolute humidity, enthalpy and apparent ("feels like") temperature, derived from the live readings.
 - **Connection monitoring** — get notified when the sensor stops responding, with an automatic recovery message once it is back.
 - **Quiet hours** — hold mobile notifications during a set period (e.g. at night) and deliver them afterwards.
-- **On-device calibration** — temperature and humidity offsets and the device ID/baud rate are written straight to the sensor.
+- **Temperature and humidity correction** — applied by Home Assistant itself, so it works reliably even on sensor batches that do not store a negative correction correctly.
 - **Reconfigurable any time** — change everything later from the options screen; no need to remove and re-add the integration.
 - **Multiple sensors**, each with its own settings.
 - **Dutch and English** translations of the UI.
@@ -120,7 +120,7 @@ After installing, go to **Settings → Devices & Services → Add Integration** 
 - Set the **scan interval** (default = 10 seconds).
 - Click **Submit**.
 
-After submitting, the integration contacts the sensor and reads back its current settings, which you can then fine-tune via the ⚙️ gear icon.
+After submitting, you can fine-tune corrections and notifications via the ⚙️ gear icon.
 
 ---
 
@@ -135,13 +135,14 @@ Click the gear icon on the SHT20 integration to open the options.
 
 **Available options**
 
-- **Device ID** and **baud rate** — written to the sensor; the form is pre-filled with the values the sensor currently reports.
-- **Temperature offset** (−10.0 … +10.0 °C) and **humidity offset** (−10.0 … +10.0 %).
+- **Device ID** and **baud rate** — connection parameters only, used to reach the sensor; never written to it. If you change the sensor's own address or baud rate (outside Home Assistant), update these to match so the integration can still connect. Baud rate only appears here for a serial (RTU) connection.
+- **Scan interval** — now changeable after setup too. Increase this if the sensor shares a gateway with other Modbus devices.
+- **Temperature offset** and **humidity offset** — added to the measured value in Home Assistant, not written to the sensor.
 - **Ambient pressure** (hPa) — used by the calculated sensors.
 - **Multiplier** — scaling for the raw values. Default **0.01** (the sensor reports hundredths, e.g. `2572` → `25.72`). Set to **1** if no scaling is needed.
 - **Connection error notifications** — see below.
 
-The integration only writes to the sensor when a value that lives on the device actually changed, and it reloads automatically so new settings take effect right away.
+The integration reloads automatically so new settings take effect right away.
 
 ---
 
