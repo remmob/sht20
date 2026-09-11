@@ -38,8 +38,9 @@ DEFAULT_SCAN_INTERVAL = 10
 
 # The sensor stores the baud rate as a code in its settings register
 BAUDRATE_CODES = {0: 9600, 1: 14400, 2: 19200}
-BAUDRATE_VALUES = {baudrate: code for code, baudrate in BAUDRATE_CODES.items()}
 DEFAULT_MULTIPLIER = 0.01     # The sensor reports hundredths (2572 -> 25.72)
+DEFAULT_TEMP_OFFSET = 0.0     # Applied in Home Assistant, not written to the sensor
+DEFAULT_HUM_OFFSET = 0.0      # Applied in Home Assistant, not written to the sensor
 
 # Number of decimals shown for every sensor
 DISPLAY_PRECISION = 2
@@ -52,7 +53,10 @@ DEFAULT_NOTIFY_CONNECTION_ERRORS_MOBILE = False
 DEFAULT_NOTIFY_CONNECTION_ERRORS_PERSISTENT = False
 DEFAULT_NOTIFY_CONNECTION_ERRORS_SERVICES = ""
 DEFAULT_CONNECTION_ERROR_NOTIFICATION_TITLE = "SHT20 verbindingsfout!"
-DEFAULT_CONNECTION_ERROR_DELAY = 60     # Seconds of failure before notifying
+# ConnectionMonitor derives the failure threshold as max(1, int(delay / scan_interval)).
+# 180 gives 3 cycles at a 60s scan_interval while staying generous at faster intervals.
+# This is only the default; an existing config entry keeps its own stored value.
+DEFAULT_CONNECTION_ERROR_DELAY = 180    # Seconds of failure before notifying
 DEFAULT_NOTIFY_RECOVERY = True
 
 DEFAULT_QUIET_HOURS_ENABLED = False
@@ -60,9 +64,32 @@ DEFAULT_QUIET_HOURS_START = "23:00:00"
 DEFAULT_QUIET_HOURS_END = "07:00:00"
 
 # Communication robustness
+# modbus-connection reconnects automatically but does not retry timeouts, so
+# MAX_READ_RETRIES/RETRY_DELAY_SECONDS provide our own retry. See
+# _update_with_retry in hub.py.
 MAX_READ_RETRIES = 3
 RETRY_DELAY_SECONDS = 1
-STALE_CONNECTION_SECONDS = 300          # Force a reconnect after this long without data
+
+# This many consecutive timeouts means a stuck link: the socket is still open
+# but the device behind it has stopped responding, so automatic reconnection
+# has nothing to reconnect. See _consecutive_timeouts handling in hub.py.
+STUCK_LINK_TIMEOUTS = 3
+
+# Bus corruption (e.g. this sensor's input-register reads getting interleaved
+# with another device's holding-register reads on a shared Modbus gateway)
+# decodes into a valid-looking but wrong int16 - no exception is raised, so
+# MAX_READ_RETRIES above never sees it. A jump bigger than these limits
+# between consecutive polls is treated as a bad read instead. Raw register
+# units (hundredths), same scale as Sht20Readings in device.py.
+MAX_TEMPERATURE_STEP = 200   # 2.00 degrees
+MAX_HUMIDITY_STEP = 500      # 5.00 %RH
+
+# If every poll looks implausible for this many cycles in a row, the last
+# known good value is probably the stale one (e.g. after a real step change
+# such as a heater switching on next to the sensor) - accept the new reading
+# as the baseline instead of freezing forever. See _implausible_streak in
+# hub.py.
+MAX_IMPLAUSIBLE_POLLS = 3
 DEFAULT_PRESSURE = 1013.25      # Standard atmosphere at sea level
 
 # Units for the calculated sensors

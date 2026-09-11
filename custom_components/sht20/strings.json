@@ -62,10 +62,11 @@
     "step": {
       "init": {
         "title": "SHT20 settings",
-        "description": "Device settings and corrections. The offsets are written to the sensor itself.",
+        "description": "Connection details and corrections. Device ID and baud rate are only used to connect - changing them here is never written to the sensor.",
         "data": {
           "device_id": "Modbus device ID",
           "baudrate": "Baud rate",
+          "scan_interval": "Scan interval (seconds)",
           "temp_offset": "Temperature correction (°C)",
           "hum_offset": "Humidity correction (%)",
           "multiplier": "Multiplier",
@@ -81,10 +82,11 @@
           "quiet_hours_end": "Quiet hours until"
         },
         "data_description": {
-          "device_id": "Modbus address of the sensor (1-247). Changing this writes the new address to the sensor.",
-          "baudrate": "Changing this writes the new baud rate to the sensor. Make sure the gateway or serial port uses the same speed afterwards.",
-          "temp_offset": "Correction written to the sensor and applied by the sensor itself.",
-          "hum_offset": "Correction written to the sensor and applied by the sensor itself.",
+          "device_id": "Modbus address of the sensor (1-247). Change this if you changed the sensor's own address; it is not written to the sensor.",
+          "baudrate": "Only used for a direct serial (RTU) connection. Change this if you changed the sensor's own baud rate; it is not written to the sensor.",
+          "scan_interval": "How often the sensor is read. Increase this if the sensor shares a gateway with other Modbus devices.",
+          "temp_offset": "Added to the measured value in Home Assistant. Not written to the sensor - this hardware does not reliably store a negative correction.",
+          "hum_offset": "Added to the measured value in Home Assistant. Not written to the sensor - this hardware does not reliably store a negative correction.",
           "multiplier": "Scaling factor for the raw register value. Use 0.1 for a sensor that reports tenths.",
           "pressure": "Ambient air pressure used for the absolute humidity and enthalpy calculation. Standard atmosphere is 1013.25 hPa; lower this value at higher altitudes.",
           "notify_connection_errors_services": "Comma separated notify service names, for example mobile_app_phone. Without the service domain (so not notify.mobile_app_phone).",
@@ -95,9 +97,6 @@
           "quiet_hours_end": "Held push messages are sent at this time."
         }
       }
-    },
-    "error": {
-      "write_failed": "Could not write the settings to the sensor. The settings have not been saved."
     }
   }
 }

@@ -6,16 +6,26 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.const import UnitOfTemperature, PERCENTAGE
+from homeassistant.const import (
+    UnitOfTemperature,
+    PERCENTAGE,
+    EntityCategory,
+    __version__ as HA_VERSION,
+)
 
 from . import calculations
+from .connection import HAS_SHARED_CONNECTION, active_method
 from .const import (
     DOMAIN,
     CONF_NAME,
     CONF_MULTIPLIER,
     CONF_PRESSURE,
+    CONF_TEMP_OFFSET,
+    CONF_HUM_OFFSET,
     DEFAULT_MULTIPLIER,
     DEFAULT_PRESSURE,
+    DEFAULT_TEMP_OFFSET,
+    DEFAULT_HUM_OFFSET,
     DISPLAY_PRECISION,
     ABSOLUTE_HUMIDITY_PRECISION,
     UNIT_ABSOLUTE_HUMIDITY,
@@ -25,8 +35,15 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-# The temperature and humidity corrections are written to the sensor itself,
-# so the values read back are already corrected.
+# The temperature and humidity corrections are applied here, not written to
+# the sensor: this hardware does not reliably store a negative correction in
+# its own registers (the sign byte gets dropped on at least the humidity
+# register), so the offset is added in Home Assistant instead, after scaling
+# by the multiplier - the same units the user enters it in.
+_OFFSET_CONF = {
+    "temperature": (CONF_TEMP_OFFSET, DEFAULT_TEMP_OFFSET),
+    "humidity": (CONF_HUM_OFFSET, DEFAULT_HUM_OFFSET),
+}
 SENSOR_TYPES = {
     "temperature": {
         "name": "Temperature",
@@ -83,18 +100,23 @@ def _device_info(entry, name):
 
 
 def _scaled_value(coordinator, entry, key):
-    """Return a raw register value scaled with the configured multiplier."""
+    """Return a raw register value scaled with the multiplier, offset applied."""
     value = coordinator.data.get(key) if coordinator.data else None
     if value is None:
         return None
 
-    return value * entry.options.get(CONF_MULTIPLIER, DEFAULT_MULTIPLIER)
+    value = value * entry.options.get(CONF_MULTIPLIER, DEFAULT_MULTIPLIER)
+
+    offset_conf = _OFFSET_CONF.get(key)
+    if offset_conf is not None:
+        conf_key, default = offset_conf
+        value += entry.options.get(conf_key, default)
+
+    return value
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]["realtime"]
-
-    #_LOGGER.debug("Setting up SHT20 sensors: data=%s | options=%s", entry.data, entry.options)
 
     entities = [
         Sht20Sensor(coordinator, entry, key)
@@ -108,6 +130,11 @@ async def async_setup_entry(hass, entry, async_add_entities):
             Sht20CalculatedSensor(coordinator, entry, key)
             for key in CALCULATED_SENSOR_TYPES
         )
+
+    # TEMPORARY: shows which of the two connection methods this Home
+    # Assistant instance uses. Remove once the 2026.9 migration is proven, or
+    # fold into an attribute on an existing sensor.
+    entities.append(Sht20ConnectionMethodSensor(coordinator, entry))
 
     async_add_entities(entities)
 
@@ -178,3 +205,38 @@ class Sht20CalculatedSensor(CoordinatorEntity, SensorEntity):
         except (ValueError, ZeroDivisionError) as err:
             _LOGGER.warning("Could not calculate %s: %s", self._key, err)
             return None
+
+
+class Sht20ConnectionMethodSensor(CoordinatorEntity, SensorEntity):
+    """TEMPORARY: shows which Modbus connection method is active.
+
+    Reads no register — the value comes from connection.py and reflects only
+    whether Home Assistant's `async_get_unit` was available (2026.9+, shared
+    connection) or not (older, this integration opens its own socket). A
+    diagnostic entity (EntityCategory.DIAGNOSTIC), so it appears at the
+    bottom of the device rather than among the measurements.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:transit-connection-variant"
+
+    def __init__(self, coordinator, entry):
+        super().__init__(coordinator)
+        name = entry.data[CONF_NAME]
+
+        self._attr_name = f"{name} Connection method"
+        self._attr_unique_id = f"{entry.entry_id}_connection_method"
+        self._attr_device_info = _device_info(entry, name)
+
+    @property
+    def native_value(self):
+        return active_method()
+
+    @property
+    def extra_state_attributes(self):
+        # Include the HA version so a screenshot shows at a glance why this
+        # method was chosen.
+        return {
+            "shared_connection_available": HAS_SHARED_CONNECTION,
+            "home_assistant_version": HA_VERSION,
+        }
