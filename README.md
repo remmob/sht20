@@ -1,7 +1,7 @@
 [![en](https://img.shields.io/badge/lang-en-red.svg)](README.md)
 [![nl](https://img.shields.io/badge/lang-nl-orange.svg)](README.nl.md)
 
-![Version](https://img.shields.io/github/v/release/remmob/sht20modbus 'Release') ![Downloads](https://img.shields.io/github/downloads/remmob/sht20modbus/total 'Downloads') ![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home') [![total issues](https://img.shields.io/github/issues/remmob/sht20modbus 'Total issues')](https://github.com/remmob/sht20modbus/issues) ![Stars](https://img.shields.io/github/stars/remmob/sht20modbus)
+![Version](https://img.shields.io/github/v/release/remmob/sht20modbus 'Release') ![Downloads](https://img.shields.io/github/downloads/remmob/sht20modbus/total 'Downloads') ![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home') [![Marketplace](https://img.shields.io/badge/Marketplace-Default-41BDF5.svg 'Home Assistant Marketplace')](https://my.home-assistant.io/redirect/marketplace_repository/?owner=remmob&repository=sht20&category=integration) [![total issues](https://img.shields.io/github/issues/remmob/sht20modbus 'Total issues')](https://github.com/remmob/sht20modbus/issues) ![Stars](https://img.shields.io/github/stars/remmob/sht20modbus)
 
 # 🧩 SHT20 Modbus Sensor Integration for Home Assistant
 
@@ -60,7 +60,18 @@ The calculations use an ambient **pressure** value that you can set in the optio
   <img src="./images/pcb.png" width="200"/>
 </p>
 
-### HACS (default store)
+### Marketplace (Home Assistant 2026.11 and newer)
+
+Since Home Assistant 2026.11, HACS is built into Home Assistant as the **Marketplace**. SHT20 Modbus is available there.
+
+[![Open your Home Assistant instance and open a repository inside the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=remmob&repository=sht20&category=integration)
+
+1. Go to **Settings** > **Marketplace**.
+2. Search for **SHT20** and open it (or use the button above).
+3. Click **Download**.
+4. **Restart Home Assistant**.
+
+### HACS (default store, Home Assistant 2026.10 and older)
 
 SHT20 Modbus is available in the [HACS](https://hacs.xyz) default store.
 
