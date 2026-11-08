@@ -25,9 +25,11 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     CONF_BAUDRATE,
+    CONF_PARITY,
     CONF_DEVICE,
     CONF_MODE,
     DEFAULT_BAUDRATE,
+    DEFAULT_PARITY,
     DEFAULT_PORT,
 )
 
@@ -82,6 +84,7 @@ def build_params(
         return ModbusSerialParams(
             device=data[CONF_DEVICE],
             baudrate=int(data.get(CONF_BAUDRATE, DEFAULT_BAUDRATE)),
+            parity=data.get(CONF_PARITY, DEFAULT_PARITY),
         )
 
     raise ValueError(f"Unsupported mode: {mode!r}")

@@ -32,10 +32,12 @@
         "data": {
           "device": "Serial port",
           "baudrate": "Baud rate",
+          "parity": "Parity",
           "scan_interval": "Scan interval (seconds)"
         },
         "data_description": {
-          "scan_interval": "How often the sensor is read."
+          "scan_interval": "How often the sensor is read.",
+          "parity": "Must match the sensor and every other device on the same serial port. Home Assistant shares one connection per port, so all of them have to use the same setting. Default: None."
         }
       },
       "udp": {
@@ -66,6 +68,7 @@
         "data": {
           "device_id": "Modbus device ID",
           "baudrate": "Baud rate",
+          "parity": "Parity",
           "scan_interval": "Scan interval (seconds)",
           "temp_offset": "Temperature correction (°C)",
           "hum_offset": "Humidity correction (%)",
@@ -84,6 +87,7 @@
         "data_description": {
           "device_id": "Modbus address of the sensor (1-247). Change this if you changed the sensor's own address; it is not written to the sensor.",
           "baudrate": "Only used for a direct serial (RTU) connection. Change this if you changed the sensor's own baud rate; it is not written to the sensor.",
+          "parity": "Must match the sensor and every other device on the same serial port. Home Assistant shares one connection per port, so all of them have to use the same setting. Default: None.",
           "scan_interval": "How often the sensor is read. Increase this if the sensor shares a gateway with other Modbus devices.",
           "temp_offset": "Added to the measured value in Home Assistant. Not written to the sensor - this hardware does not reliably store a negative correction.",
           "hum_offset": "Added to the measured value in Home Assistant. Not written to the sensor - this hardware does not reliably store a negative correction.",
@@ -96,6 +100,15 @@
           "quiet_hours_start": "Push messages are held from this time onwards.",
           "quiet_hours_end": "Held push messages are sent at this time."
         }
+      }
+    }
+  },
+  "selector": {
+    "parity": {
+      "options": {
+        "N": "None",
+        "E": "Even",
+        "O": "Odd"
       }
     }
   }

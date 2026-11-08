@@ -128,6 +128,7 @@ After installing, go to **Settings → Devices & Services → Add Integration** 
 
 - Select the **serial port** in Home Assistant's port picker. Besides USB adapters it also lists the serial proxies of ESPHome devices.
 - Choose the **baud rate** (default = 9600).
+- Choose the **parity** (default = None). The sensor itself works with any setting. It only matters when the sensor shares the serial port with other Modbus devices: Home Assistant then uses one connection for all of them, so every device has to use the same parity (a Zehnder ComfoAir, for example, needs Even).
 - Set the **scan interval** (default = 10 seconds).
 - Click **Submit**.
 
@@ -147,6 +148,7 @@ Click the gear icon on the SHT20 integration to open the options.
 **Available options**
 
 - **Device ID** and **baud rate** — connection parameters only, used to reach the sensor; never written to it. If you change the sensor's own address or baud rate (outside Home Assistant), update these to match so the integration can still connect. Baud rate only appears here for a serial (RTU) connection.
+- **Parity** (serial only) — see above: irrelevant for the sensor itself, but it has to match the other devices on the same serial port.
 - **Scan interval** — now changeable after setup too. Increase this if the sensor shares a gateway with other Modbus devices.
 - **Temperature offset** and **humidity offset** — added to the measured value in Home Assistant, not written to the sensor.
 - **Ambient pressure** (hPa) — used by the calculated sensors.

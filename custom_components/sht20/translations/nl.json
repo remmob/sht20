@@ -32,10 +32,12 @@
         "data": {
           "device": "Seriële poort",
           "baudrate": "Baudrate",
+          "parity": "Pariteit",
           "scan_interval": "Uitleesinterval (seconden)"
         },
         "data_description": {
-          "scan_interval": "Hoe vaak de sensor wordt uitgelezen."
+          "scan_interval": "Hoe vaak de sensor wordt uitgelezen.",
+          "parity": "Moet gelijk zijn aan de sensor en aan elk ander apparaat op dezelfde seriële poort. Home Assistant deelt één verbinding per poort, dus ze moeten allemaal dezelfde instelling gebruiken. Standaard: geen."
         }
       },
       "udp": {
@@ -66,6 +68,7 @@
         "data": {
           "device_id": "Modbus apparaat-ID",
           "baudrate": "Baudrate",
+          "parity": "Pariteit",
           "scan_interval": "Uitleesinterval (seconden)",
           "temp_offset": "Temperatuurcorrectie (°C)",
           "hum_offset": "Vochtigheidscorrectie (%)",
@@ -84,6 +87,7 @@
         "data_description": {
           "device_id": "Modbus-adres van de sensor (1-247). Wijzig dit als je het adres van de sensor zelf hebt aangepast; het wordt niet naar de sensor geschreven.",
           "baudrate": "Alleen relevant bij een directe seriële (RTU) verbinding. Wijzig dit als je de baudrate van de sensor zelf hebt aangepast; het wordt niet naar de sensor geschreven.",
+          "parity": "Moet gelijk zijn aan de sensor en aan elk ander apparaat op dezelfde seriële poort. Home Assistant deelt één verbinding per poort, dus ze moeten allemaal dezelfde instelling gebruiken. Standaard: geen.",
           "scan_interval": "Hoe vaak de sensor wordt uitgelezen. Verhoog dit als de sensor een gateway deelt met andere Modbus-apparaten.",
           "temp_offset": "Wordt in Home Assistant bij de gemeten waarde opgeteld. Wordt niet naar de sensor geschreven - deze hardware slaat een negatieve correctie niet betrouwbaar op.",
           "hum_offset": "Wordt in Home Assistant bij de gemeten waarde opgeteld. Wordt niet naar de sensor geschreven - deze hardware slaat een negatieve correctie niet betrouwbaar op.",
@@ -96,6 +100,15 @@
           "quiet_hours_start": "Vanaf dit tijdstip worden pushberichten vastgehouden.",
           "quiet_hours_end": "Op dit tijdstip worden vastgehouden pushberichten alsnog verstuurd."
         }
+      }
+    }
+  },
+  "selector": {
+    "parity": {
+      "options": {
+        "N": "Geen",
+        "E": "Even",
+        "O": "Oneven"
       }
     }
   }

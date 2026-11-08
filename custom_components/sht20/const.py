@@ -9,6 +9,7 @@ CONF_MODE = "mode"
 CONF_DEVICE = "device"          # RTU only
 CONF_DEVICE_ID = "device_id"    # Modbus unit ID
 CONF_BAUDRATE = "baudrate"      # RTU only
+CONF_PARITY = "parity"          # RTU only
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_PORT = "port"              # TCP only
 CONF_TEMP_OFFSET = "temp_offset"
@@ -35,6 +36,14 @@ DEFAULT_PORT = 502
 DEFAULT_DEVICE_ID = 1
 DEFAULT_BAUDRATE = 9600
 DEFAULT_SCAN_INTERVAL = 10
+
+# Parity of the serial line. N matches what the integration always used before
+# this setting existed, so existing entries keep working unchanged. Other
+# devices on the same bus decide this: Home Assistant shares one connection per
+# serial port and only when every user opens it with the same settings (a
+# ComfoAir, for example, needs E).
+DEFAULT_PARITY = "N"
+ALLOWED_PARITIES = ["N", "E", "O"]
 
 # The sensor stores the baud rate as a code in its settings register
 BAUDRATE_CODES = {0: 9600, 1: 14400, 2: 19200}

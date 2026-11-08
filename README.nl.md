@@ -127,7 +127,7 @@ Na installatie ga je naar **Instellingen → Apparaten & diensten → Integratie
 ![rtu](./images/flowrtu.png)
 
 - Kies de **seriële poort** in de poortkiezer van Home Assistant. Naast USB-adapters staan daar ook de seriële proxies van ESPHome-apparaten in.
-- Kies de **baudrate** (standaard = 9600).
+- Kies de **pariteit** (standaard = Geen). Voor de sensor zelf maakt de instelling niet uit. Het telt alleen als de sensor de seriële poort deelt met andere Modbus-apparaten: Home Assistant gebruikt dan één verbinding voor allemaal, dus elk apparaat moet dezelfde pariteit gebruiken (een Zehnder ComfoAir bijvoorbeeld Even).
 - Stel het **scan-interval** in (standaard = 10 seconden).
 - Klik op **Verzenden**.
 
@@ -147,6 +147,7 @@ Klik op het tandwiel bij de SHT20-integratie om de opties te openen.
 **Beschikbare opties**
 
 - **Apparaat-ID** en **baudrate** — alleen verbindingsgegevens om de sensor te bereiken; worden nooit naar de sensor geschreven. Heb je het adres of de baudrate van de sensor zelf gewijzigd (buiten Home Assistant om), pas ze hier aan zodat de integratie weer kan verbinden. Baudrate verschijnt alleen bij een seriële (RTU) verbinding.
+- **Pariteit** (alleen serieel) — zie hierboven: maakt voor de sensor zelf niet uit, maar moet gelijk zijn aan de andere apparaten op dezelfde seriële poort.
 - **Uitleesinterval** — nu ook achteraf aan te passen. Verhoog dit als de sensor een gateway deelt met andere Modbus-apparaten.
 - **Temperatuuroffset** en **vochtigheidsoffset** — worden in Home Assistant bij de gemeten waarde opgeteld, niet naar de sensor geschreven.
 - **Luchtdruk** (hPa) — gebruikt door de berekende sensoren.
