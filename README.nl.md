@@ -127,7 +127,7 @@ Na installatie ga je naar **Instellingen → Apparaten & diensten → Integratie
 ![rtu](./images/flowrtu.png)
 
 - Kies de **seriële poort** in de poortkiezer van Home Assistant. Naast USB-adapters staan daar ook de seriële proxies van ESPHome-apparaten in.
-- Kies de **pariteit** (standaard = Geen). Voor de sensor zelf maakt de instelling niet uit. Het telt alleen als de sensor de seriële poort deelt met andere Modbus-apparaten: Home Assistant gebruikt dan één verbinding voor allemaal, dus elk apparaat moet dezelfde pariteit gebruiken (een Zehnder ComfoAir bijvoorbeeld Even).
+- Kies de **pariteit** (standaard = Geen). Voor de sensor zelf maakt de instelling niet uit. Het telt alleen als de sensor de seriële poort deelt met andere Modbus-apparaten: Home Assistant gebruikt dan één verbinding voor allemaal, dus elk apparaat moet dezelfde pariteit gebruiken.
 - Stel het **scan-interval** in (standaard = 10 seconden).
 - Klik op **Verzenden**.
 

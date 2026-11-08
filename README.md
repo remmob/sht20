@@ -128,7 +128,7 @@ After installing, go to **Settings → Devices & Services → Add Integration** 
 
 - Select the **serial port** in Home Assistant's port picker. Besides USB adapters it also lists the serial proxies of ESPHome devices.
 - Choose the **baud rate** (default = 9600).
-- Choose the **parity** (default = None). The sensor itself works with any setting. It only matters when the sensor shares the serial port with other Modbus devices: Home Assistant then uses one connection for all of them, so every device has to use the same parity (a Zehnder ComfoAir, for example, needs Even).
+- Choose the **parity** (default = None). The sensor itself works with any setting. It only matters when the sensor shares the serial port with other Modbus devices: Home Assistant then uses one connection for all of them, so every device has to use the same parity.
 - Set the **scan interval** (default = 10 seconds).
 - Click **Submit**.
 
