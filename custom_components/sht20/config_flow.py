@@ -111,9 +111,11 @@ BAUDRATE_SELECTOR = selector.SelectSelector(
     )
 )
 
+# Translation keys must be lower case, so the selector works with n/e/o while
+# the entry stores N/E/O, the form modbus-connection expects.
 PARITY_SELECTOR = selector.SelectSelector(
     selector.SelectSelectorConfig(
-        options=ALLOWED_PARITIES,
+        options=[parity.lower() for parity in ALLOWED_PARITIES],
         mode=selector.SelectSelectorMode.DROPDOWN,
         translation_key="parity",
     )
@@ -203,6 +205,8 @@ class Sht20ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not errors:
                 self._data.update(user_input)
                 self._data[CONF_BAUDRATE] = baudrate
+                if CONF_PARITY in self._data:
+                    self._data[CONF_PARITY] = str(self._data[CONF_PARITY]).upper()
                 return await self._create_entry()
 
         return self.async_show_form(
@@ -210,7 +214,7 @@ class Sht20ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema({
                 vol.Required(CONF_DEVICE): SERIAL_PORT_SELECTOR,
                 vol.Required(CONF_BAUDRATE, default=str(DEFAULT_BAUDRATE)): BAUDRATE_SELECTOR,
-                vol.Required(CONF_PARITY, default=DEFAULT_PARITY): PARITY_SELECTOR,
+                vol.Required(CONF_PARITY, default=DEFAULT_PARITY.lower()): PARITY_SELECTOR,
                 vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): int,
             }),
             errors=errors,
@@ -250,7 +254,7 @@ class Sht20OptionsFlowHandler(OptionsFlow):
             # The selectors hand back a float and a string
             device_id = int(user_input.get(CONF_DEVICE_ID, current_device_id))
             baudrate  = int(user_input.get(CONF_BAUDRATE, current_baudrate))
-            parity = user_input.get(CONF_PARITY, current_parity)
+            parity = str(user_input.get(CONF_PARITY, current_parity)).upper()
             scan_interval = int(user_input.get(CONF_SCAN_INTERVAL, current_scan_interval))
 
             # Store the normalised values instead of what the selectors returned
@@ -259,6 +263,7 @@ class Sht20OptionsFlowHandler(OptionsFlow):
                 CONF_DEVICE_ID: device_id,
                 CONF_BAUDRATE: baudrate,
                 CONF_SCAN_INTERVAL: scan_interval,
+                **({CONF_PARITY: parity} if CONF_PARITY in user_input else {}),
                 CONF_NOTIFY_CONNECTION_ERRORS_SERVICES: _normalize_services(
                     user_input.get(CONF_NOTIFY_CONNECTION_ERRORS_SERVICES)
                 ),
@@ -292,7 +297,7 @@ class Sht20OptionsFlowHandler(OptionsFlow):
             # TCP/UDP gateway's own baud rate towards the sensor is not
             # something Home Assistant talks to.
             schema_fields[vol.Required(CONF_BAUDRATE, default=str(current_baudrate))] = BAUDRATE_SELECTOR
-            schema_fields[vol.Required(CONF_PARITY, default=current_parity)] = PARITY_SELECTOR
+            schema_fields[vol.Required(CONF_PARITY, default=current_parity.lower())] = PARITY_SELECTOR
         schema_fields.update({
             vol.Optional(CONF_SCAN_INTERVAL, default=current_scan_interval): vol.All(vol.Coerce(int), vol.Range(min=1, max=3600)),
             vol.Optional(CONF_TEMP_OFFSET, default=current_temp_offset): vol.Coerce(float),

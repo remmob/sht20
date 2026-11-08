@@ -106,9 +106,9 @@
   "selector": {
     "parity": {
       "options": {
-        "N": "Geen",
-        "E": "Even",
-        "O": "Oneven"
+        "n": "Geen",
+        "e": "Even",
+        "o": "Oneven"
       }
     }
   }
