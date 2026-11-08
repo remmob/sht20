@@ -1,9 +1,7 @@
 """SHT20 config flow"""
 import logging
 import voluptuous as vol
-import asyncio
 import ipaddress
-import serial.tools.list_ports
 
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
@@ -110,6 +108,13 @@ BAUDRATE_SELECTOR = selector.SelectSelector(
     )
 )
 
+# Home Assistant's own serial port picker. Unlike pyserial's port listing it
+# also shows the serial proxies of ESPHome devices (esphome-hass:// URLs),
+# which serialx underneath tmodbus can open like any other port.
+SERIAL_PORT_SELECTOR = selector.SerialPortSelector(
+    selector.SerialPortSelectorConfig()
+)
+
 class Sht20ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
@@ -174,13 +179,6 @@ class Sht20ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_rtu(self, user_input=None) -> FlowResult:
         errors = {}
 
-        async def get_serial_ports():
-            loop = asyncio.get_running_loop()
-            return await loop.run_in_executor(None, lambda: [port.device for port in serial.tools.list_ports.comports()])
-
-        available_ports = await get_serial_ports()
-        default_device = available_ports[0] if available_ports else ""
-
         if user_input is not None:
             # The selector hands back a string
             try:
@@ -199,14 +197,11 @@ class Sht20ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="rtu",
             data_schema=vol.Schema({
-                vol.Required(CONF_DEVICE, default=default_device): vol.In(available_ports) if available_ports else str,
+                vol.Required(CONF_DEVICE): SERIAL_PORT_SELECTOR,
                 vol.Required(CONF_BAUDRATE, default=str(DEFAULT_BAUDRATE)): BAUDRATE_SELECTOR,
                 vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): int,
             }),
             errors=errors,
-            description_placeholders={
-                "no_ports_found": not available_ports
-            }
         )
 
     async def _create_entry(self) -> FlowResult:

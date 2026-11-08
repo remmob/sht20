@@ -94,7 +94,7 @@ def _device_info(entry, name):
     return {
         "identifiers": {(DOMAIN, str(entry.entry_id))},
         "name": name,
-        "manufacturer": "Bommer Home automation",
+        "manufacturer": "Mischa Bommer",
         "model": "SHT20 Modbus temp/hum sensor",
     }
 

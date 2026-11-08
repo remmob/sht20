@@ -1,7 +1,7 @@
 [![en](https://img.shields.io/badge/lang-en-red.svg)](README.md)
 [![nl](https://img.shields.io/badge/lang-nl-orange.svg)](README.nl.md)
 
-![Version](https://img.shields.io/github/v/release/remmob/sht20modbus 'Release') ![Downloads](https://img.shields.io/github/downloads/remmob/sht20modbus/total 'Downloads') ![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home') [![Marketplace](https://img.shields.io/badge/Marketplace-Default-41BDF5.svg 'Home Assistant Marketplace')](https://my.home-assistant.io/redirect/marketplace_repository/?owner=remmob&repository=sht20&category=integration) [![total issues](https://img.shields.io/github/issues/remmob/sht20modbus 'Total issues')](https://github.com/remmob/sht20modbus/issues) ![Stars](https://img.shields.io/github/stars/remmob/sht20modbus)
+![Version](https://img.shields.io/github/v/release/remmob/sht20modbus 'Release') ![Downloads](https://img.shields.io/github/downloads/remmob/sht20modbus/total 'Downloads') ![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg 'Default Home') [![Marketplace](https://img.shields.io/badge/Marketplace-Default-41BDF5.svg 'Home Assistant Marketplace')](https://my.home-assistant.io/redirect/marketplace_repository/?owner=remmob&repository=sht20&category=integration) ![HA min](https://img.shields.io/badge/Home%20Assistant-2026.5%2B-41BDF5.svg 'Minimum Home Assistant version') [![total issues](https://img.shields.io/github/issues/remmob/sht20modbus 'Total issues')](https://github.com/remmob/sht20modbus/issues) ![Stars](https://img.shields.io/github/stars/remmob/sht20modbus)
 
 # 🧩 SHT20 Modbus Sensor Integration for Home Assistant
 
@@ -126,7 +126,7 @@ After installing, go to **Settings → Devices & Services → Add Integration** 
 
 ![rtu](./images/flowrtu.png)
 
-- Select the **serial port** (all available ports are listed automatically).
+- Select the **serial port** in Home Assistant's port picker. Besides USB adapters it also lists the serial proxies of ESPHome devices.
 - Choose the **baud rate** (default = 9600).
 - Set the **scan interval** (default = 10 seconds).
 - Click **Submit**.
